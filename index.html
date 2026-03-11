@@ -1,0 +1,3184 @@
+<!DOCTYPE html>
+<div id="fsToolbar" style="position:fixed; top:.5rem; left:.5rem; z-index:9999; display:flex; gap:.5rem; align-items:center; font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+  <button id="btnLinkJson" class="icon" title="Link a JSON file and remember it">Link JSON (remember)</button>
+  <span id="fileStatus" style="opacity:.8"></span>
+</div>
+
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FOOLOOP — withedit delete stable v2.3.31</title>
+<style>
+  body{font-family:Arial, sans-serif; text-align:center; padding:32px; background:#f6f7f9}
+  #reminder{font-size:1rem; padding:16px; background:#fff; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,.08); min-height:48px}
+  .toolbar{display:flex; gap:10px; justify-content:center; margin:14px 0; flex-wrap:wrap}
+  button{cursor:pointer; border:none}
+  .round{border-radius:50%; padding:10px 14px; font-size:1.25rem; background:#4CAF50; color:#fff}
+  .icon{border-radius:50%; padding:10px 14px; font-size:1.05rem; background:#888; color:#fff}
+  .icon:hover{filter:brightness(.9)}
+  textarea{width:320px; font-size:.95rem; padding:8px}
+  input[type="text"]{width:320px; font-size:.95rem; padding:8px}
+  .sub{display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; width:min(720px,92vw); max-height:70vh; overflow:auto; padding:18px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.2); z-index:1000}
+  .sub h3{margin:0 0 10px}
+  .item{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 10px; margin:6px 0; background:#fafafa; border-radius:8px; border:1px solid #eee; font-size:.95rem}
+  .minus{color:#d33; font-size:1.2rem; cursor:pointer}
+  .edit{color:#007bff; font-size:1.1rem; cursor:pointer}
+  .recover{color:#0a7; font-size:1rem; cursor:pointer}
+  .close{margin-top:10px; background:#f44336; color:#fff; padding:8px 14px; border-radius:8px}
+  #msg{position:fixed; top:12px; left:50%; transform:translateX(-50%); background:#222; color:#fff; padding:8px 12px; border-radius:8px; display:none; z-index:1100; font-size:.9rem}
+  .hint{font-size:.8rem; color:#666; margin-top:8px}
+  .hidden{display:none}
+  .muted{color:#6b7280}
+  #devBanner{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:8px 12px;border-radius:10px;margin-bottom:8px;font-size:.9rem}
+  .row{display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap}
+  .small{font-size:.8rem; color:#666}
+
+/* --- Tagging (safe, minimal) --- */
+.tag-pill{display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; background:#eef1f5; color:#445; font-size:.78rem; vertical-align:middle; pointer-events:none}
+.filter-chip{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:12px; background:#dde3ee; font-size:.82rem; cursor:default}
+.filter-chip .x{cursor:pointer; font-weight:bold}
+.savedPulse{animation: savedPulse 0.6s ease-out}
+@keyframes savedPulse{0%{background:#fff4c2}100%{background:transparent}}
+
+
+.top-actions{ display:inline-flex; gap:8px; margin-left:8px; vertical-align:middle; }
+.top-actions button{ vertical-align:middle; }
+
+/* --- Option B (isolated) --- */
+@media (max-width: 560px){
+  .inline-tag-edit{ min-width:0; width:100%; margin-left:0; margin-top:6px; display:block; }
+}
+
+.sub.open{display:block !important}
+
+  .tag-loop-bar .tagbtn.multi{ border-style: solid; }
+  .tag-loop-bar .tagbtn.active{ background:#1f7ae0; color:#fff; border-color:#1f7ae0; }
+  .tag-loop-bar .tagbtn.notag{ background:#fff7ea; border-color:#f0c36a; }
+  .tag-loop-bar .tagbtn.notag.active{ background:#f0c36a; color:#222; }
+</style>
+
+
+
+
+<style>
+.modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modalBox{background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:720px;width:min(92vw,720px);max-height:80vh;display:flex;flex-direction:column}
+.modalHeader{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:10px 14px}
+.modalContent{padding:8px 14px;overflow:auto}
+.closeBtn{border:none;background:#eee;border-radius:10px;width:32px;height:32px;font-size:18px;cursor:pointer}
+.resultItem{display:flex;align-items:flex-start;gap:8px;border:1px solid #eee;border-radius:12px;padding:10px 12px;margin:8px 0}
+.resultText{flex:1}
+.resultActions{display:flex;gap:6px}
+.resultBtn{border:1px solid #ddd;background:#fafafa;border-radius:10px;padding:4px 8px;cursor:pointer}
+</style>
+
+
+<style>
+.item.match { background: #fff8cc; }
+.item mark { background: #ffea70; padding: 0 2px; border-radius: 3px; }
+</style>
+
+<style>
+/* === FOOLoop patch (2025-09-22): hide item-destructive buttons === */
+#curList .minus { display: none !important; }
+#binList .restore, #binList .purge { display: none !important; }
+</style>
+<style>
+/* === FOOLoop patch (2025-09-22): remove tag search UI === */
+#tagFilterRow, #tagInput, #tagChips { display: none !important; }
+</style>
+
+<script>
+(function(){ 
+  try {
+    window.VERSION = "v2.3.10";
+    // Title (replace existing dev markers like v2.x in the <title>)
+    if (document && document.title) {
+      document.title = document.title.replace(/v\d+\.\d+(?:\.\d+)?(?:-dev)?/i, "v2.3.10");
+      if (!/v\d+/.test(document.title)) document.title = document.title + " — v2.3.10";
+    }
+    // Dev banner text (ensure it shows the same VERSION)
+    var dev = document.getElementById('devBanner');
+    if (dev) {
+      dev.innerHTML = '<strong>Dev build:</strong> v2.3.10 — Keyboard shortcuts, Search, CSV Export. Uses the same <code>reminders.json</code>.';
+    }
+  } catch(_) { }
+})();
+
+function renderChips(){
+  chips.innerHTML = '';
+  curTags.forEach(function(tag){
+    var pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.setAttribute('data-tag', String(tag));
+    pill.style.cssText = 'display:inline-flex;align-items:center;gap:.35rem;border:1px solid #d0d0d0;border-radius:999px;padding:.35rem .6rem;';
+    var label = document.createElement('span'); label.textContent = '#' + tag;
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'chip-x'; btn.title = 'Remove';
+    btn.style.cssText = 'border:none;background:transparent;cursor:pointer;line-height:1;font-size:18px;padding:.25rem .45rem;';
+    btn.textContent = '×';
+    pill.appendChild(label); pill.appendChild(btn);
+    chips.appendChild(pill);
+  });
+
+  if (!chips.__chipBound){
+    chips.addEventListener('click', function(ev){
+      var btn = ev.target.closest && ev.target.closest('.chip-x');
+      if (!btn) return;
+      ev.preventDefault(); ev.stopPropagation();
+      var pill = btn.closest('.tag-pill');
+      if (!pill) return;
+      var tag = pill.getAttribute('data-tag') || (pill.querySelector('span') && pill.querySelector('span').textContent.replace(/^#\s*/, '').trim());
+      var pos = curTags.findIndex(function(t){ return String(t).toLowerCase() === String(tag).toLowerCase(); });
+      if (pos > -1){
+        curTags.splice(pos, 1);
+        renderChips();
+      }
+    }, false);
+    chips.__chipBound = true;
+  }
+}
+
+</script>
+
+<style>
+/* === Empty state placeholders === */
+.empty-state{
+  padding: 1rem;
+  margin: .5rem 0;
+  border: 1px dashed #ccc;
+  border-radius: .6rem;
+  font-size: .95rem;
+  color: #666;
+  background: #fafafa;
+}
+</style>
+
+<style>
+  /* Tag Loop Bar */
+  .tag-loop-bar{
+    display:flex; flex-wrap:wrap; gap:.4rem; align-items:center;
+    margin:.5rem 0 0; padding:.25rem 0;
+  }
+  .tag-loop-bar .tagbtn{
+    -webkit-tap-highlight-color: transparent;
+    font-size:.9rem; line-height:1; padding:.45rem .6rem;
+    border:1px solid #d0d0d0; border-radius:999px; background:#fff;
+    min-height:34px; min-width:34px; cursor:pointer;
+  }
+  .tag-loop-bar .tagbtn.active{ background:#1f7ae0; color:#fff; border-color:#1f7ae0; }
+  .tag-loop-bar .tagbtn:active{ transform: translateY(1px); }
+</style>
+
+
+<style>
+  /* ===== Mobile-friendly loop controls ===== */
+  .loop-toolbar{
+    display:flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: .5rem 0 .25rem;
+  }
+  .loop-toolbar .ctrl{
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+  select#loopMode, select#loopSpeed{
+    max-width: 44vw;
+    min-height: 36px;
+    padding: .35rem .5rem;
+    font-size: 16px;
+  }
+  #tagToggle{
+    -webkit-tap-highlight-color: transparent;
+    min-height: 36px; min-width: 36px;
+    padding: .35rem .6rem;
+    font-size: 15px;
+    border-radius: 10px;
+    border: 1px solid #d0d0d0;
+    background: #fff;
+    cursor: pointer;
+  }
+  /* Collapsible tag bar: collapsed = single-line horizontal scroll;
+     expanded = wraps to multiple rows */
+  #tagLoopBar{
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .4rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    padding: .25rem 0 .35rem;
+    border-top: 1px solid #efefef;
+    margin-top: .25rem;
+  }
+  #tagLoopBar.open{
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-x: visible;
+    border-top-color: transparent;
+  }
+  .tagbtn{
+    -webkit-tap-highlight-color: transparent;
+    font-size: .95rem;
+    line-height: 1;
+    padding: .45rem .6rem;
+    border: 1px solid #d0d0d0;
+    border-radius: 999px;
+    background: #fff;
+    min-height: 34px;
+    min-width: 34px;
+    cursor: pointer;
+  }
+  .tagbtn.active{ background:#1f7ae0; color:#fff; border-color:#1f7ae0; }
+  .tagbtn.notag{ background:#fff7ea; border-color:#f0c36a; }
+  .tagbtn.notag.active{ background:#f0c36a; color:#222; }
+  /* Make layout fit very small screens */
+  @media (max-width: 420px){
+    .loop-toolbar{ gap: .4rem; }
+    select#loopMode, select#loopSpeed{ max-width: 40vw; }
+  }
+</style>
+
+
+<style>
+  /* Enlarge the Speed selector specifically */
+  select#loopSpeed{
+    font-size: 18px;
+    padding: .45rem .7rem;
+    min-height: 42px;
+    min-width: 140px;
+    max-width: 60vw;
+  }
+  /* On very small screens, allow a bit more width while keeping layout intact */
+  @media (max-width: 420px){
+    select#loopSpeed{
+      max-width: 64vw;
+    }
+  }
+</style>
+
+
+<style>
+  /* === v2.3.28 UI polish === */
+  /* Buttons: avoid vertical overstretch when space is abundant */
+  .toolbar .btn,
+  .tag-loop-bar .tagbtn,
+  .btn {
+    flex: 0 0 auto;
+    align-self: center;
+    max-height: 48px;
+  }
+  .toolbar-row { align-items: center; }
+
+  /* Tag strip buttons consistent sizing */
+  .tag-loop-bar .tagbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Current Reminders panel centering + visible scrollbar on large screens */
+  #listWin {
+    position: fixed;
+    top: min(8vh, 80px);
+    left: 50% !important;
+    transform: translateX(-50%);
+    width: min(94vw, 980px);
+    max-height: 80vh;
+    overflow-y: auto;
+    right: auto !important;
+    box-sizing: border-box;
+  }
+  /* Make sure the inner list area doesn't hide the scrollbar */
+  #listWin #curList {
+    overflow-y: auto;
+  }
+</style>
+
+
+<style>
+  .inline-editor .chips .chip-x { touch-action: manipulation; }
+</style>
+
+<style id="show-minus-css">
+/* Force show delete in Current panel for testing */
+#curList .minus { display: inline !important; pointer-events: auto !important; }
+</style>
+<script>window.__ALLOW_DESTRUCTIVE_BUTTONS__ = true;</script>
+<style id="enable-edit-css">
+/* Re-enable edit affordances */
+#curList .edit, #binList .edit { display: inline !important; pointer-events: auto !important; }
+</style>
+<style id="force-newText-visible">
+/* Force the add textarea to be visible and usable */
+#newText {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  min-height: 2.25rem !important;
+  margin-top: .25rem;
+}
+/* Ensure its parent row is not hidden */
+#newText, #newText:where(*) {
+  pointer-events: auto !important;
+}
+#newText::-webkit-input-placeholder { opacity: .7; }
+#newText::placeholder { opacity: .7; }
+/* In case a parent .row was set to display:none somewhere */
+#newText { /* we already target the element directly */ }
+</style>
+
+<style>
+/* === Tag area constraints: 8 per row, max 5 rows, smaller font === */
+:root{
+  --tag-row-h: 32px;   /* chip row height */
+  --tag-gap: .35rem;   /* space between chips */
+}
+
+/* Force grid layout for the tag bar (override any previous flex) */
+#tagLoopBar,
+#tagLoopBar.open{
+  display: grid !important;
+  grid-template-columns: repeat(8, minmax(72px, 1fr)); /* 8 per line */
+  gap: var(--tag-gap);
+  align-items: start;
+  justify-items: start;
+
+  /* width cap so it doesn't sprawl on wide screens */
+  max-width: min(920px, 96vw);
+  margin: .25rem auto;
+  padding: .25rem 0;
+
+  /* show at most 5 lines */
+  max-height: calc(var(--tag-row-h) * 5 + var(--tag-gap) * 4);
+  overflow: hidden; /* anything beyond 5 rows is clipped */
+  border-top: 1px solid #efefef; /* subtle visual separation */
+}
+
+/* Compact tag buttons + trim long labels */
+#tagLoopBar .tagbtn{
+  font-size: .78rem !important;
+  line-height: 1;
+  padding: .25rem .5rem !important;
+  min-height: var(--tag-row-h);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Optional visual consistency when active */
+#tagLoopBar .tagbtn.active{ background:#1f7ae0; color:#fff; border-color:#1f7ae0; }
+#tagLoopBar .tagbtn.notag.active{ background:#f0c36a; color:#222; }
+</style>
+
+</head>
+<body>
+
+<h1 style="font-size:1.2rem; margin:0 0 10px">FOOLOOP — withedit delete stable v2.3.31</h1>
+<div id="devBanner"><strong>Dev build:</strong> v2.1 adds Keyboard Shortcuts, Search, and CSV Export. Uses the same <code>reminders.json</code>.</div>
+
+<div id="reminder">Attempting auto-connect… or click 📁 to select a data file.</div>
+
+<div class="toolbar">
+  <button class="round" title="Add reminder" onclick="openAddOverlay()"newText');if(ta){  try{ta.style.display='block';}catch(_){}  try{ta.focus();}catch(_){}  try{ta.scrollIntoView({behavior:'smooth', block:'center'});}catch(_){}}})();"add',null,document.getElementById('newText').value.trim());document.getElementById('newText').value=''">+</button>
+  <button class="icon" title="Recycle Bin" onclick="toggle('binWin')">🗑️</button>
+  <button class="icon" title="Current Reminders" onclick="toggle('listWin')">📅</button>
+  <label class="icon" title="Import JSON (fallback)" style="display:inline-flex; align-items:center; gap:6px" for="importInput" onclick="document.getElementById(\'importInput\').click()">
+    ⬆️<input id="importInput" type="file" accept="application/json" style="position:absolute;opacity:0;left:0;top:0;width:1px;height:1px;" onchange="importJSON(event)" />
+  </label>
+  <button class="icon" title="Export JSON (fallback)" onclick="exportJSON()">JSON</button>
+  <button class="icon" title="Export CSV" onclick="exportCSV()">CSV</button>
+  
+  <select id="loopMode" data-in-toolbar="1" title="Loop Mode" onchange="setLoopMode(this.value)" style="border:none;border-radius:20px;padding:10px 14px;font-size:1.05rem;background:#555;color:#fff;margin-left:6px;">    <option value="seq">SEQ</option>    <option value="rand">RAND</option>    <option value="batch">BATCH</option>  </select>
+  <select id="loopSpeed"></select><div id="tagLoopBar" class="tag-loop-bar"></div><!-- title="Speed" onchange="setLoopSpeed(this.value)" style="border:none;border-radius:20px;padding:10px 14px;font-size:1.05rem;background:#555;color:#fff;margin-left:6px;">    <option value="3000">3s</option>    <option value="4000">4s</option>    <option value="5000">5s</option>  </select>
+</div>
+
+<div class="row">
+  <textarea id="newText" rows="2" placeholder="Type a new reminder… (Enter = add, Shift+Enter = newline, Esc = clear)"></textarea>
+</div>
+<p class="hint" id="fileStatus">No data file connected. Click 📁 to open or create one.</p>
+
+<!-- Recycle Bin -->
+<div id="binWin" class="sub">
+  <h3>Recycle Bin</h3>
+  <div id="binList"></div>
+  <button class="close" onclick="toggle('binWin')">Close</button>
+</div>
+
+<!-- Current Reminders -->
+<div id="listWin" class="sub" style="position:relative">
+  <h3>Current Reminders</h3>
+  <div style="position:absolute; top:.5rem; right:.75rem;">
+    <button class="icon" onclick="toggle('listWin')" title="Close">Close</button>
+  </div>
+  <div class="row" style="margin:8px 0 6px">
+    <input id="listSearch" type="text" placeholder="Search current reminders…" oninput="renderLists()" />
+    <span class="small" id="searchCount"></span>
+  </div>
+  
+  <div class="row" id="tagFilterRow" style="margin:6px 0 10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+    <input id="tagInput" type="text" placeholder="Filter by tags… (comma or space)" onkeydown="handleTagInput(event)" style="flex:1; min-width:220px" />
+    <div id="tagChips" class="chips" style="display:flex; gap:6px; flex-wrap:wrap"></div>
+    <button type="button" class="icon" title="Clear tag filter" onclick="clearTagFilter()">✖️</button>
+  </div>
+
+  <div id="curList"></div>
+  <button class="close" onclick="toggle('listWin')">Close</button>
+</div>
+
+<div id="msg"></div>
+
+
+
+<script>
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+
+  /* ========= Multi-select tag-controlled loop ========= */
+  var NOT_TAGGED = '__NOT_TAGGED__';
+  var activeSet = new Set();
+
+  function loadSelection(){
+    try{
+      var raw = localStorage.getItem('loopTags') || '[]';
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr)) activeSet = new Set(arr.map(x=>String(x)));
+    }catch(_){ activeSet = new Set(); }
+  }
+  function saveSelection(){
+    try{ localStorage.setItem('loopTags', JSON.stringify(Array.from(activeSet))); }catch(_){}
+  }
+
+  function isAll(){ return activeSet.size === 0; }
+  function toggleTag(tag){
+    if (tag === ''){
+      // All button clears selection
+      activeSet.clear();
+    } else {
+      if (activeSet.has(tag)) activeSet.delete(tag);
+      else activeSet.add(tag);
+    }
+    saveSelection();
+    renderTagButtons();
+    // restart loop to apply new filter
+    try{ if (typeof window.restartLoop==='function') window.restartLoop(); else if (typeof window.startLoop==='function'){ window.stopLoop&&window.stopLoop(); window.startLoop(); } }catch(_){}
+  }
+
+  function getAllTags(){
+    var list = Array.isArray(window.reminders)? window.reminders : [];
+    var st = new Set(); var sawUntagged = false;
+    for (var i=0;i<list.length;i++){
+      var tags = Array.isArray(list[i] && list[i].tags) ? list[i].tags : [];
+      if (!tags.length) sawUntagged = true;
+      for (var j=0;j<tags.length;j++){
+        var t = String(tags[j]||'').trim(); if (t) st.add(t);
+      }
+    }
+    return { tags: Array.from(st).sort((a,b)=>a.localeCompare(b)), hasUntagged: sawUntagged };
+  }
+
+  function renderTagButtons(){
+    var bar = byId('tagLoopBar'); if (!bar) return;
+    var meta = getAllTags();
+    var tags = meta.tags;
+    var html = '';
+    html += '<button class="tagbtn multi '+(isAll()?'active':'')+'" data-tag="">All</button>';
+    html += '<button class="tagbtn multi notag '+(activeSet.has(NOT_TAGGED)?'active':'')+'" data-tag="'+NOT_TAGGED+'">Not Tagged</button>';
+    for (var i=0;i<tags.length;i++){
+      var t = tags[i];
+      var isActive = activeSet.has(String(t).toLowerCase());
+      html += '<button class="tagbtn multi '+(isActive?'active':'')+'" data-tag="'+esc(String(t).toLowerCase())+'">#'+esc(t)+'</button>';
+    }
+    bar.innerHTML = html;
+    var btns = bar.querySelectorAll('.tagbtn');
+    for (var k=0;k<btns.length;k++){
+      btns[k].addEventListener('click', function(){
+        var tag = this.getAttribute('data-tag') || '';
+        toggleTag(tag);
+      });
+    }
+  }
+
+  function getLoopList(){
+    var list = Array.isArray(window.reminders)? window.reminders : [];
+    if (isAll()) return list;
+    var want = new Set(Array.from(activeSet));
+    var wantsUntagged = want.has(NOT_TAGGED);
+    return list.filter(function(r){
+      var tags = Array.isArray(r && r.tags) ? r.tags : [];
+      if (!tags.length) return wantsUntagged;
+      // match ANY selected tag (union)
+      for (var i=0;i<tags.length;i++){
+        if (want.has(String(tags[i]||'').toLowerCase())) return true;
+      }
+      return false;
+    });
+  }
+
+  // Patch loop start/stop to use filtered list
+  (function(){
+    var prevStart = window.startLoop;
+    var prevStop  = window.stopLoop;
+    window.startLoop = function(){
+      try{ if (window.loopTimer) clearInterval(window.loopTimer); }catch(_){}
+      function nextIndex(len){
+        try{
+          var mode = (window.loopMode||'rand').toLowerCase();
+          if (mode === 'rand') return Math.floor(Math.random()*len);
+          window.loopIdx = (window.loopIdx||0);
+          window.loopIdx = (window.loopIdx+1) % len;
+          return window.loopIdx;
+        }catch(_){ return Math.floor(Math.random()*len); }
+      }
+      function tick(){
+        try{
+          var list = getLoopList();
+          if (!list.length){ window.setLoopLabel && window.setLoopLabel(''); return; }
+          var i = nextIndex(list.length);
+          var txt = String(list[i] && list[i].text || '').trim();
+          window.setLoopLabel && window.setLoopLabel(txt);
+        }catch(e){ try{ console.error('loop tick error', e); }catch(_){ } }
+      }
+      try{
+        var sp = parseInt(window.loopSpeed||2000,10); if (isNaN(sp) || sp<500) sp = 2000;
+        window.loopTimer = setInterval(tick, sp);
+        tick();
+      }catch(_){}
+    };
+    window.stopLoop = function(){ try{ if (window.loopTimer) clearInterval(window.loopTimer); window.loopTimer=null; }catch(_){ } };
+    window.restartLoop = function(){ if (window.loopTimer) window.startLoop(); };
+  })();
+
+  // Build tag bar on load and whenever lists render
+  document.addEventListener('DOMContentLoaded', function(){
+    // ensure container exists
+    if (!byId('tagLoopBar')){
+      var speed = byId('loopSpeed');
+      if (speed && speed.parentNode){
+        var bar = document.createElement('div'); bar.id='tagLoopBar'; bar.className='tag-loop-bar';
+        speed.parentNode.insertBefore(bar, speed.nextSibling);
+      }
+    }
+    loadSelection();
+    renderTagButtons();
+  });
+  (function(){
+    var prevRender = window.renderLists;
+    window.renderLists = function(){
+      try{ if (typeof prevRender==='function') prevRender(); }catch(_){}
+      try{ renderTagButtons(); }catch(_){}
+    };
+  })();
+  // Expose for debugging
+  window._loopTagState = { getLoopList, toggleTag, activeSet };
+})();
+</script>
+
+<script>
+(function(){
+  'use strict';
+  var __dataFileHandle = null;
+  function byId(id){ try{ return document.getElementById(id); }catch(_){ return null; } }
+  async function readFromHandle(h){ const f = await h.getFile(); return await f.text(); }
+  async function writeToHandle(h, text){ const w = await h.createWritable(); await w.write(text); await w.close(); }
+  window.connectDataFile = async function(){
+    try{
+      if (window.showOpenFilePicker){
+        const [h] = await window.showOpenFilePicker({ types:[{ description:'JSON', accept:{'application/json':['.json']} }], excludeAcceptAllOption:false, multiple:false });
+        __dataFileHandle = h;
+        let text = ''; try{ text = await readFromHandle(h); }catch(_){}
+        try{
+          const data = JSON.parse(text || '{}');
+          window.reminders = Array.isArray(data.reminders) ? data.reminders : (window.reminders||[]);
+          window.deleted   = Array.isArray(data.deleted)   ? data.deleted   : (window.deleted||[]);
+          if (typeof window.renderLists === 'function') window.renderLists();
+          var fs = byId('fileStatus'); if (fs) fs.textContent = 'Connected: ' + (h.name || 'data.json');
+          if (typeof window.toast === 'function') window.toast('Connected and loaded.');
+        }catch(e){
+          var fs2 = byId('fileStatus'); if (fs2) fs2.textContent = 'Connected (empty): ' + (h.name || 'data.json');
+          if (typeof window.toast === 'function') window.toast('Connected: new/empty file.');
+        }
+      } else {
+        var inp = document.createElement('input'); inp.type='file'; inp.accept='application/json';
+        inp.onchange = async function(ev){
+          try{
+            var f = ev.target.files && ev.target.files[0]; if(!f) return;
+            var text = await f.text();
+            var data = JSON.parse(text || '{}');
+            window.reminders = Array.isArray(data.reminders) ? data.reminders : (window.reminders||[]);
+            window.deleted   = Array.isArray(data.deleted)   ? data.deleted   : (window.deleted||[]);
+            if (typeof window.renderLists === 'function') window.renderLists();
+            var fs = byId('fileStatus'); if (fs) fs.textContent = 'Loaded (fallback): ' + (f.name || 'data.json');
+            if (typeof window.toast === 'function') window.toast('Loaded (fallback).');
+          }catch(_){}
+        };
+        inp.click();
+      }
+    }catch(err){ try{ console.error('connectDataFile error', err); }catch(_){} }
+  };
+  (function(){
+    var prev = window.saveReminders;
+    window.saveReminders = async function(){
+      if (typeof prev === 'function'){ try{ prev(); }catch(_){ } }
+      try{
+        if (__dataFileHandle){
+          var payload = JSON.stringify({ reminders:(window.reminders||[]), deleted:(window.deleted||[]), schema:1 }, null, 2);
+          await writeToHandle(__dataFileHandle, payload);
+        }
+      }catch(e){ try{ console.warn('FS write skipped:', e); }catch(_){ } }
+    };
+  })();
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+
+  function normalizeTag(t){ return String(t||'').trim().toLowerCase(); }
+
+  function migrateData(raw){
+    var data = raw;
+    if (Array.isArray(raw)) {
+      data = { reminders: raw, deleted: [] };
+    } else if (typeof raw !== 'object' || raw === null) {
+      data = { reminders: [], deleted: [] };
+    } else {
+      data = {
+        reminders: Array.isArray(raw.reminders) ? raw.reminders : (Array.isArray(raw.items) ? raw.items : []),
+        deleted: Array.isArray(raw.deleted) ? raw.deleted : []
+      };
+    }
+    var seen = {};
+    var outRem = [];
+    for (var i=0;i<data.reminders.length;i++){
+      var r = data.reminders[i] || {};
+      var id = r.id || r.uuid || r.key || (String(Date.now()) + '-' + i);
+      while (seen[id]) { id = id + '-d'; }
+      seen[id] = true;
+      var text = String(r.text || r.title || r.name || '').trim();
+      var tags = Array.isArray(r.tags) ? r.tags : [];
+      var tset = {}; var tagsOut = [];
+      for (var j=0;j<tags.length;j++){ var v = normalizeTag(tags[j]); if (v && !tset[v]){ tset[v]=true; tagsOut.push(v); } }
+      outRem.push({ id:id, text:text, tags:tagsOut });
+    }
+    var outDel = [];
+    for (var k=0;k<data.deleted.length;k++){
+      var d = data.deleted[k] || {};
+      var did = d.id || d.uuid || d.key || ('del-'+k);
+      var dtext = String(d.text || d.title || d.name || '').trim();
+      var dtags = Array.isArray(d.tags) ? d.tags.map(normalizeTag) : [];
+      outDel.push({ id:did, text:dtext, tags:dtags });
+    }
+    return { reminders: outRem, deleted: outDel };
+  }
+
+  window.migrateData = window.migrateData || migrateData;
+
+  if (typeof window.connectDataFile === 'function') {
+    var _orig_connect = window.connectDataFile;
+    window.connectDataFile = async function(){
+      try{
+        await _orig_connect();
+        // After original connect finishes, examine globals and migrate if needed
+        var needs = false;
+        if (!Array.isArray(window.reminders)) needs = true;
+        else{
+          for (var i=0;i<window.reminders.length;i++){
+            if (!Array.isArray(window.reminders[i].tags)) { needs = true; break; }
+          }
+        }
+        if (needs){
+          var migrated = migrateData({ reminders: window.reminders || [], deleted: window.deleted || [] });
+          window.reminders = migrated.reminders;
+          window.deleted = migrated.deleted;
+          if (typeof window.renderLists === 'function') window.renderLists();
+          try{
+            var fs = document.getElementById('fileStatus');
+            if (fs) fs.textContent += ' (migrated)';
+          }catch(_){}
+          if (typeof window.toast === 'function') window.toast('Migrated legacy file: tags initialized.');
+        }
+      }catch(e){
+        try{ console.error('connectDataFile migration wrapper error', e); }catch(_){}
+      }
+    };
+  }
+
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  function toArray(x){ return Array.isArray(x) ? x : (x ? [x] : []); }
+  function asLowerString(x){ return String(x||'').trim().toLowerCase(); }
+  function normTag(t){ return asLowerString(t); }
+  function uniq(arr){ var s={}, out=[]; for(var i=0;i<arr.length;i++){ var k=arr[i]; if(!s[k]){ s[k]=1; out.push(k); } } return out; }
+  function extractList(obj, keys){
+    for (var i=0;i<keys.length;i++){ var k = keys[i]; if (Array.isArray(obj[k])) return obj[k]; }
+    return null;
+  }
+  function coerceTagsMaybe(x){
+    if (!x) return [];
+    if (Array.isArray(x)){
+      var out=[];
+      for (var i=0;i<x.length;i++){
+        var v = x[i];
+        if (typeof v === 'string') out.push(normTag(v));
+        else if (v && typeof v === 'object'){
+          var cand = v.name || v.title || v.tag || v.label;
+          if (cand) out.push(normTag(cand));
+        }
+      }
+      return uniq(out.filter(Boolean));
+    }
+    if (typeof x === 'string'){
+      var parts = x.split(/[,\|#; ]+/);
+      return uniq(parts.map(normTag).filter(Boolean));
+    }
+    if (typeof x === 'object'){
+      var nested = x.labels || x.categories || x.tags;
+      return coerceTagsMaybe(nested);
+    }
+    return [];
+  }
+  function pick(obj, keys){
+    for (var i=0;i<keys.length;i++){ if (obj[keys[i]] != null) return obj[keys[i]]; }
+    return undefined;
+  }
+  function universalParse(text){
+    var raw; try{ raw = JSON.parse(text); }catch(_){ raw = null; }
+    if (!raw) return { reminders: [], deleted: [] };
+    if (Array.isArray(raw)){ return shapeLists(raw, []); }
+    var root = raw.data && typeof raw.data==='object' ? raw.data : raw;
+    root = root.content && typeof root.content==='object' ? root.content : root;
+    var rem = extractList(root, ['reminders','items','notes','tasks','todos','list','records','entries']) || [];
+    var del = extractList(root, ['deleted','trash','archived','bin']) || [];
+    if (!rem.length && root.current && Array.isArray(root.current)) rem = root.current;
+    if (!del.length && root.removed && Array.isArray(root.removed)) del = root.removed;
+    if (!rem.length && Array.isArray(root.all)){
+      var all = root.all;
+      rem = all.filter(function(x){ return (x && String(x.status||'').toLowerCase()) !== 'deleted'; });
+      del = all.filter(function(x){ return (x && String(x.status||'').toLowerCase()) === 'deleted'; });
+    }
+    return shapeLists(rem, del);
+  }
+  function shapeLists(rem, del){
+    var seen = {};
+    function makeId(base){
+      var id = String(base || (Date.now() + '-' + Math.random().toString(36).slice(2,7)));
+      while (seen[id]){ id = id + '-d'; }
+      seen[id] = true;
+      return id;
+    }
+    function toItem(r, idx, deleted){
+      r = r || {};
+      var id = (r.id||r.uuid||r.key||r._id||'') || makeId((deleted?'del':'id')+'-'+idx);
+      if (seen[id]) id = makeId(id);
+      var text = (r.text||r.title||r.name||r.content||r.body||r.value||r.note||r.task||''); text = String(text).trim();
+      var tags = coerceTagsMaybe(r.tags||r.labels||r.categories||r.tag||r.label);
+      return { id:id, text:text, tags: tags };
+    }
+    var outRem = []; for (var i=0;i<rem.length;i++){ outRem.push(toItem(rem[i], i, false)); }
+    var outDel = []; for (var k=0;k<del.length;k++){ outDel.push(toItem(del[k], k, true)); }
+    return { reminders: outRem, deleted: outDel };
+  }
+  window.universalParse = window.universalParse || universalParse;
+  if (typeof window.connectDataFile === 'function'){
+    window.connectDataFile = async function(){
+      try{
+        if (window.showOpenFilePicker){
+          const [h] = await window.showOpenFilePicker({
+            types: [{ description:'JSON', accept: {'application/json':['.json']} }],
+            excludeAcceptAllOption: false, multiple: false
+          });
+          const f = await h.getFile(); const t = await f.text();
+          var parsed = universalParse(t);
+          window.reminders = parsed.reminders; window.deleted = parsed.deleted;
+          if (typeof window.renderLists === 'function') window.renderLists();
+          var fs = document.getElementById('fileStatus');
+          if (fs) fs.textContent = 'Connected: ' + (h.name || 'data.json') + ' (universal)';
+          if (typeof window.toast === 'function') window.toast('Loaded with universal parser.');
+          // patch save to write canonical
+          (function(handle){
+            try{
+              var prev = window.saveReminders;
+              window.saveReminders = async function(){
+                if (typeof prev === 'function'){ try{ prev(); }catch(_){ } }
+                try{
+                  if (handle && handle.createWritable){
+                    var payload = JSON.stringify({ reminders:(window.reminders||[]), deleted:(window.deleted||[]), schema:1 }, null, 2);
+                    const w = await handle.createWritable(); await w.write(payload); await w.close();
+                  }
+                }catch(e){ try{ console.warn('FS write skipped:', e); }catch(_){ } }
+              };
+            }catch(_){}
+          })(h);
+        } else {
+          var inp = document.createElement('input'); inp.type='file'; inp.accept='application/json';
+          inp.onchange = async function(ev){
+            try{
+              var file = ev.target.files && ev.target.files[0]; if(!file) return;
+              var text = await file.text();
+              var parsed = universalParse(text);
+              window.reminders = parsed.reminders; window.deleted = parsed.deleted;
+              if (typeof window.renderLists === 'function') window.renderLists();
+              var fs = document.getElementById('fileStatus');
+              if (fs) fs.textContent = 'Loaded (fallback universal): ' + (file.name || 'data.json');
+              if (typeof window.toast === 'function') window.toast('Loaded with universal parser (fallback).');
+            }catch(_){}
+          };
+          inp.click();
+        }
+      }catch(e){ try{ console.error('universal connectDataFile error', e); }catch(_){ } }
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  function stripBOM(s){ return s && s.charCodeAt(0)===0xFEFF ? s.slice(1) : s; }
+  function stripComments(s){
+    return String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  }
+  function tryParse(text){
+    var t = stripBOM(text);
+    try{ return JSON.parse(t); }catch(_){}
+    try{ return JSON.parse(stripComments(t)); }catch(_){}
+    try{
+      var x = JSON.parse(t);
+      if (typeof x === 'string') return JSON.parse(stripComments(stripBOM(x)));
+    }catch(_){}
+    return null;
+  }
+  function asLower(x){ return String(x||'').trim().toLowerCase(); }
+  function uniq(arr){ var s={}, out=[]; for(var i=0;i<arr.length;i++){ var k=arr[i]; if(!s[k]){ s[k]=1; out.push(k); } } return out; }
+  function coerceTags(x){
+    if (!x) return [];
+    if (Array.isArray(x)){
+      var out=[];
+      for (var i=0;i<x.length;i++){
+        var v = x[i];
+        if (typeof v === 'string') out.push(asLower(v));
+        else if (v && typeof v === 'object'){
+          var cand = v.name || v.title || v.tag || v.label;
+          if (cand) out.push(asLower(cand));
+        }
+      }
+      return uniq(out.filter(Boolean));
+    }
+    if (typeof x === 'string'){
+      var parts = x.split(/[,\|#; ]+/);
+      return uniq(parts.map(asLower).filter(Boolean));
+    }
+    if (typeof x === 'object'){
+      return coerceTags(x.tags || x.labels || x.categories);
+    }
+    return [];
+  }
+  function pick(obj, keys){
+    for (var i=0;i<keys.length;i++){ var k = keys[i]; if (obj && obj[k]!=null) return obj[k]; }
+    return undefined;
+  }
+  function partitionByFlags(all){
+    var current=[], removed=[];
+    for (var i=0;i<all.length;i++){
+      var r = all[i] || {};
+      var status = asLower(r.status || r.state || r.phase || '');
+      var flagDeleted = r.deleted===true || r.isDeleted===true || r.trashed===true || r.archived===true;
+      if (status==='deleted' || status==='trash' || flagDeleted) removed.push(r); else current.push(r);
+    }
+    return {current: current, removed: removed};
+  }
+  function ensureId(idSeen, base){
+    var id = String(base || (Date.now() + '-' + Math.random().toString(36).slice(2,7)));
+    while (idSeen[id]){ id = id + '-d'; }
+    idSeen[id] = 1;
+    return id;
+  }
+  function toItem(r, idx, deleted, idSeen){
+    r = r || {};
+    var id = pick(r, ['id','uuid','key','_id']) || ensureId(idSeen, (deleted?'del':'id')+'-'+idx);
+    if (idSeen[id]) id = ensureId(idSeen, id);
+    var text = pick(r, ['text','title','name','content','body','value','note','task']) || '';
+    text = String(text).trim();
+    var tags = coerceTags(pick(r, ['tags','labels','categories','tag','label']));
+    return { id:id, text:text, tags:tags };
+  }
+  function shapeLists(rem, del){
+    var idSeen = {};
+    var outRem = []; for (var i=0;i<rem.length;i++){ outRem.push(toItem(rem[i], i, false, idSeen)); }
+    var outDel = []; for (var k=0;k<del.length;k++){ outDel.push(toItem(del[k], k, true, idSeen)); }
+    return { reminders: outRem, deleted: outDel };
+  }
+  function universalPlus(text){
+    var raw = tryParse(text);
+    if (!raw) return { reminders: [], deleted: [] };
+    if (Array.isArray(raw)){
+      var parts = partitionByFlags(raw);
+      return shapeLists(parts.current, parts.removed);
+    }
+    var root = raw;
+    if (root && typeof root==='object'){
+      if (root.data && typeof root.data==='object') root = root.data;
+      if (root.content && typeof root.content==='object') root = root.content;
+    }
+    var rem = null, del = null;
+    var keysRem = ['reminders','items','notes','tasks','todos','list','records','entries','current','active'];
+    var keysDel = ['deleted','trash','archived','bin','removed'];
+    for (var i=0;i<keysRem.length;i++){ var k=keysRem[i]; if (Array.isArray(root[k])) { rem = root[k]; break; } }
+    for (var j=0;j<keysDel.length;j++){ var d=keysDel[j]; if (Array.isArray(root[d])) { del = root[d]; break; } }
+    if (!rem && Array.isArray(root.cur)) rem = root.cur;
+    if (!del && Array.isArray(root.bin)) del = root.bin;
+    if (!rem && Array.isArray(root.all)){
+      var parts2 = partitionByFlags(root.all);
+      rem = parts2.current; del = parts2.removed;
+    }
+    rem = Array.isArray(rem) ? rem : (Array.isArray(root) ? root : []);
+    del = Array.isArray(del) ? del : [];
+    return shapeLists(rem, del);
+  }
+  window.universalPlus = window.universalPlus || universalPlus;
+
+  if (typeof window.connectDataFile === 'function'){
+    window.connectDataFile = async function(){
+      try{
+        if (window.showOpenFilePicker){
+          const [h] = await window.showOpenFilePicker({
+            types: [{ description:'JSON', accept: {'application/json':['.json']} }],
+            excludeAcceptAllOption: false, multiple: false
+          });
+          const f = await h.getFile(); const t = await f.text();
+          var parsed = universalPlus(t);
+          window.reminders = parsed.reminders; window.deleted = parsed.deleted;
+          if (typeof window.renderLists === 'function') window.renderLists();
+          var fs = document.getElementById('fileStatus');
+          if (fs) fs.textContent = 'Connected: ' + (h.name || 'data.json') + ' — loaded ' + parsed.reminders.length + ' current, ' + parsed.deleted.length + ' deleted';
+          if (typeof window.toast === 'function') window.toast('Loaded ' + parsed.reminders.length + ' current, ' + parsed.deleted.length + ' deleted.');
+          (function(handle){
+            try{
+              var prev = window.saveReminders;
+              window.saveReminders = async function(){
+                if (typeof prev === 'function'){ try{ prev(); }catch(_){ } }
+                try{
+                  if (handle && handle.createWritable){
+                    var payload = JSON.stringify({ reminders:(window.reminders||[]), deleted:(window.deleted||[]), schema:1 }, null, 2);
+                    const w = await handle.createWritable(); await w.write(payload); await w.close();
+                  }
+                }catch(e){ try{ console.warn('FS write skipped:', e); }catch(_){ } }
+              };
+            }catch(_){}
+          })(h);
+        } else {
+          var inp = document.createElement('input'); inp.type='file'; inp.accept='application/json';
+          inp.onchange = async function(ev){
+            try{
+              var file = ev.target.files && ev.target.files[0]; if(!file) return;
+              var text = await file.text();
+              var parsed = universalPlus(text);
+              window.reminders = parsed.reminders; window.deleted = parsed.deleted;
+              if (typeof window.renderLists === 'function') window.renderLists();
+              var fs = document.getElementById('fileStatus');
+              if (fs) fs.textContent = 'Loaded (fallback): ' + (file.name || 'data.json') + ' — ' + parsed.reminders.length + ' current, ' + parsed.deleted.length + ' deleted';
+              if (typeof window.toast === 'function') window.toast('Loaded (fallback): ' + parsed.reminders.length + ' current, ' + parsed.deleted.length + ' deleted.');
+            }catch(_){}
+          };
+          inp.click();
+        }
+      }catch(e){ try{ console.error('universal+ connectDataFile error', e); }catch(_){ } }
+    };
+  }
+})();
+</script>
+
+
+<script>
+
+(function(){
+  'use strict';
+  window.toggle = function(id){
+  try{
+    var el = document.getElementById(id);
+    if (!el) return;
+    var isOpen = el.classList.contains('open') || el.style.display==='block';
+    if (isOpen){
+      el.classList.remove('open');
+      el.style.display = 'none';
+    } else {
+      el.classList.add('open');
+      el.style.display = 'block';
+    }
+  }catch(e){ try{ console.error('toggle error', e); }catch(_){ } }
+};
+  function bindToolbar(){
+    var curBtn = Array.from(document.querySelectorAll('button[title="Current Reminders"], .icon[title="Current Reminders"]'))[0];
+    var binBtn = Array.from(document.querySelectorAll('button[title="Recycle Bin"], .icon[title="Recycle Bin"]'))[0];
+    if (curBtn && !curBtn.__bound){ curBtn.addEventListener('click', function(){ toggle('listWin'); }); curBtn.__bound = true; }
+    if (binBtn && !binBtn.__bound){ binBtn.addEventListener('click', function(){ toggle('binWin'); }); binBtn.__bound = true; }
+  }
+  var loopTimer = null, loopIdx = 0, loopSpeed = 3000, loopMode = 'rand';
+  function setLoopLabel(txt){
+    var host = document.getElementById('reminder'); if (!host) return; host.textContent = txt || '';
+  }
+  window.setLoopMode = function(sel){
+    try{
+      var v = (typeof sel==='string') ? sel : (sel && sel.value);
+      if (!v && document.getElementById('loopMode')) v = document.getElementById('loopMode').value;
+      if (v) loopMode = v.toLowerCase(); restartLoop();
+    }catch(_){}
+  };
+  window.setLoopSpeed = function(sel){
+    try{
+      var v = (typeof sel==='number') ? sel : (sel && sel.value);
+      if (!v && document.getElementById('loopSpeed')) v = document.getElementById('loopSpeed').value;
+      var n = parseInt(v, 10); if (!isNaN(n) && n>=500) loopSpeed = n; restartLoop();
+    }catch(_){}
+  };
+  function nextIndex(len){ if (loopMode==='rand') return Math.floor(Math.random()*len); loopIdx=(loopIdx+1)%len; return loopIdx; }
+  function tick(){
+    try{
+      var list = Array.isArray(window.reminders) ? window.reminders : [];
+      if (!list.length){ setLoopLabel(''); return; }
+      var i = nextIndex(list.length);
+      var txt = String(list[i] && list[i].text || '').trim();
+      setLoopLabel(txt);
+    }catch(e){ try{ console.error('loop tick error', e); }catch(_){ } }
+  }
+  window.startLoop = function(){ try{ if (loopTimer) clearInterval(loopTimer); tick(); loopTimer=setInterval(tick, loopSpeed); }catch(_){}};
+  window.stopLoop = function(){ try{ if (loopTimer) clearInterval(loopTimer); loopTimer=null; }catch(_){} };
+  function restartLoop(){ if (loopTimer) startLoop(); }
+  function bindLoopControls(){
+    var mode = document.getElementById('loopMode');
+    var speed = document.getElementById('loopSpeed');
+    if (mode && !mode.__bound){ mode.addEventListener('change', function(){ setLoopMode(mode); }); mode.__bound=true; }
+    if (speed && !speed.__bound){ speed.addEventListener('change', function(){ setLoopSpeed(speed); }); speed.__bound=true; }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    bindToolbar(); bindLoopControls();
+    if (document.getElementById('loopMode') || document.getElementById('loopSpeed')){ setLoopMode(); setLoopSpeed(); startLoop(); }
+  });
+  var _prevRender = window.renderLists;
+  window.renderLists = function(){ if (typeof _prevRender==='function') _prevRender(); try{ bindToolbar(); bindLoopControls(); }catch(_){} };
+})();
+
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if (!t) return;
+    var title = t.getAttribute && t.getAttribute('title');
+    if (title === 'Current Reminders'){ try{ window.toggle('listWin'); }catch(_){ } }
+    if (title === 'Recycle Bin'){ try{ window.toggle('binWin'); }catch(_){ } }
+  }, true);
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  window.reminders = Array.isArray(window.reminders) ? window.reminders : [];
+  window.deleted = Array.isArray(window.deleted) ? window.deleted : [];
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+  function uid(){ return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7); }
+  window.handleReminder = function(action, id){
+    try{
+      if (action === 'add'){
+        var inp = byId('newText'); var v = inp ? String(inp.value||'').trim() : '';
+        if (!v) return;
+        window.reminders.unshift({ id: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7), text: v, tags: []});
+        if (inp) inp.value = '';
+      } else if (action === 'delete'){
+        var i = (window.reminders||[]).findIndex(function(r){ return String(r.id)===String(id); });
+        if (i>=0){ window.deleted.unshift(window.reminders[i]); window.reminders.splice(i,1); }
+      } else if (action === 'restore'){
+        var j = (window.deleted||[]).findIndex(function(r){ return String(r.id)===String(id); });
+        if (j>=0){ window.reminders.unshift(window.deleted[j]); window.deleted.splice(j,1); }
+      } else if (action === 'purge'){
+        var k = (window.deleted||[]).findIndex(function(r){ return String(r.id)===String(id); });
+        if (k>=0){ window.deleted.splice(k,1); }
+      }
+      if (typeof window.saveReminders==='function'){ try{ window.saveReminders(); }catch(_){ } }
+      if (typeof window.renderLists==='function'){ try{ window.renderLists(); }catch(_){ } }
+    }catch(e){ try{ console.error('handleReminder error', e); }catch(_){ } }
+  };
+  window.renderLists = function(){
+    try{
+      var cur = byId('curList');
+      var bin = byId('binList');
+      if (!cur || !bin) return;
+      var qEl = byId('listSearch');
+      var q = qEl ? String(qEl.value||'').trim().toLowerCase() : '';
+      var tEl = byId('tagInput');
+      var tq = tEl ? String(tEl.value||'').trim().toLowerCase() : '';
+      function matches(r){
+        var ok = true;
+        if (q){ ok = ok && String(r.text||'').toLowerCase().indexOf(q)!==-1; }
+        if (tq){
+          var tags = Array.isArray(r.tags) ? r.tags : [];
+          ok = ok && tags.some(function(t){ return String(t).toLowerCase().indexOf(tq)!==-1; });
+        }
+        return ok;
+      }
+      function makeRow(r){
+        var safe = esc(r.text||'');
+        return '<div class="item" data-id="'+esc(r.id)+'">'
+          + '<span class="text">'+safe+'</span>'
+          + ((Array.isArray(r.tags) && r.tags.length) ? ' <span class="tags">'+r.tags.map(function(t){return '<span class="tag-pill">#'+esc(t)+'</span>';}).join(' ')+'</span>' : '')
+          + ' <span class="edit" title="Edit" onclick="editReminder(\\''+esc(r.id)+'\\')">✏️</span>'
+          + ' <span class="minus" title="Delete" onclick="handleReminder(\\'delete\\', \\''+esc(r.id)+'\\')">−</span>'
+          + '</div>';
+      }
+      function makeBinRow(r){
+        var safe = esc(r.text||'');
+        return '<div class="item" data-id="'+esc(r.id)+'">'
+          + '<span class="text">'+safe+'</span>'
+          + ((Array.isArray(r.tags) && r.tags.length) ? ' <span class="tags">'+r.tags.map(function(t){return '<span class="tag-pill">#'+esc(t)+'</span>';}).join(' ')+'</span>' : '')
+          + ' <span class="restore" title="Restore" onclick="handleReminder(\\'restore\\', \\''+esc(r.id)+'\\')">↺</span>'
+          + ' <span class="purge" title="Delete Forever" onclick="handleReminder(\\'purge\\', \\''+esc(r.id)+'\\')">✕</span>'
+          + '</div>';
+      }
+      var list = Array.isArray(window.reminders) ? window.reminders.filter(matches) : [];
+      byId('curList').innerHTML = list.map(makeRow).join('');
+      var dlist = Array.isArray(window.deleted) ? window.deleted.filter(matches) : [];
+      byId('binList').innerHTML = dlist.map(makeBinRow).join('');
+      var sc = byId('searchCount'); if (sc){ sc.textContent = q ? (list.length + ' match(es)') : ''; }
+    }catch(e){ try{ console.error('renderLists error', e); }catch(_){ } }
+  };
+  document.addEventListener('DOMContentLoaded', function(){
+    var inp = byId('newText');
+    if (inp && !inp.__bound){
+      inp.addEventListener('keydown', function(e){
+        if (e.key === 'Enter'){ e.preventDefault(); window.handleReminder('add'); }
+      }); inp.__bound = true;
+    }
+    var qEl = byId('listSearch');
+    if (qEl && !qEl.__b){ qEl.addEventListener('input', function(){ try{ window.renderLists(); }catch(_){ } }); qEl.__b = true; }
+    var tEl = byId('tagInput');
+    if (tEl && !tEl.__b){ tEl.addEventListener('input', function(){ try{ window.renderLists(); }catch(_){ } }); tEl.__b = true; }
+    try{ window.renderLists(); }catch(_){ }
+  });
+})(); 
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+  function ensureArrays(){ window.reminders = Array.isArray(window.reminders) ? window.reminders : []; window.deleted = Array.isArray(window.deleted) ? window.deleted : []; }
+
+  // Delegated row actions (no inline handlers)
+  function bindRowDelegates(){
+    var cur = byId('curList');
+    var bin = byId('binList');
+    if (cur && !cur.__delegated){
+      cur.addEventListener('click', function(ev){
+        var t = ev.target;
+        if (!t) return;
+        var row = t.closest && t.closest('.item'); if (!row) return;
+        var id = row.getAttribute('data-id');
+        if (t.classList.contains('edit')){ try{ window.editReminder(id); }catch(_){ } }
+        if (t.classList.contains('minus')){ try{ window.handleReminder('delete', id); }catch(_){ } }
+      });
+      cur.__delegated = true;
+    }
+    if (bin && !bin.__delegated){
+      bin.addEventListener('click', function(ev){
+        var t = ev.target;
+        if (!t) return;
+        var row = t.closest && t.closest('.item'); if (!row) return;
+        var id = row.getAttribute('data-id');
+        if (t.classList.contains('restore')){ try{ window.handleReminder('restore', id); }catch(_){ } }
+        if (t.classList.contains('purge')){ try{ window.handleReminder('purge', id); }catch(_){ } }
+      });
+      bin.__delegated = true;
+    }
+  }
+
+  // Replace renderer with a version that outputs plain markup (no inline handlers)
+  window.renderLists = function(){
+    try{
+      ensureArrays();
+      var cur = byId('curList');
+      var bin = byId('binList');
+      if (!cur || !bin) return;
+      var q = (byId('listSearch') && byId('listSearch').value || '').toLowerCase().trim();
+      var tq = (byId('tagInput') && byId('tagInput').value || '').toLowerCase().trim();
+
+      function matches(r){
+        var ok = true;
+        if (q) ok = ok && String(r.text||'').toLowerCase().indexOf(q)!==-1;
+        if (tq){
+          var tags = Array.isArray(r.tags)? r.tags : [];
+          ok = ok && tags.some(function(t){ return String(t).toLowerCase().indexOf(tq)!==-1; });
+        }
+        return ok;
+      }
+
+      function rowHTML(r){
+        var safe = esc(r.text||'');
+        var tagHTML = (Array.isArray(r.tags)&&r.tags.length)?
+          ' <span class="tags">'+r.tags.map(function(t){return '<span class="tag-pill">#'+esc(t)+'</span>';}).join(' ')+'</span>' : '';
+        return '<div class="item" data-id="'+esc(r.id)+'">'
+             + '<span class="text">'+safe+'</span>' + tagHTML
+             + ' <span class="edit" title="Edit">✏️</span>'
+             + ' <span class="minus" title="Delete">−</span>'
+             + '</div>';
+      }
+
+      function binRowHTML(r){
+        var safe = esc(r.text||'');
+        var tagHTML = (Array.isArray(r.tags)&&r.tags.length)?
+          ' <span class="tags">'+r.tags.map(function(t){return '<span class="tag-pill">#'+esc(t)+'</span>';}).join(' ')+'</span>' : '';
+        return '<div class="item" data-id="'+esc(r.id)+'">'
+             + '<span class="text">'+safe+'</span>' + tagHTML
+             + ' <span class="restore" title="Restore">↺</span>'
+             + ' <span class="purge" title="Delete Forever">✕</span>'
+             + '</div>';
+      }
+
+      var list = window.reminders.filter(matches);
+      cur.innerHTML = list.map(rowHTML).join('');
+
+      var dlist = window.deleted.filter(matches);
+      bin.innerHTML = dlist.map(binRowHTML).join('');
+
+      var sc = byId('searchCount');
+      if (sc){ sc.textContent = q ? (list.length + ' match(es)') : ''; }
+
+      
+      // Empty-state placeholders
+      try{
+        var curC = byId('curList');
+        var binC = byId('binList');
+        if (curC && !curC.querySelector('.item')){
+          curC.innerHTML = '<div class="empty-state">No current reminders yet. Use the box above to add one.</div>';
+        }
+        if (binC && !binC.querySelector('.item')){
+          binC.innerHTML = '<div class="empty-state">Recycle Bin is empty.</div>';
+        }
+      }catch(_){}
+    
+      bindRowDelegates();
+    }catch(e){ try{ console.error('renderLists error', e); }catch(_){ } }
+  };
+
+  // Ensure adding works (Enter in textarea)
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureArrays();
+    var inp = byId('newText');
+    if (inp && !inp.__add){
+      inp.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' && !e.shiftKey){
+          e.preventDefault();
+          var v = String(inp.value||'').trim();
+          if (!v) return;
+          window.reminders.unshift({ id: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7), text: v, tags: []});
+          inp.value='';
+          if (typeof window.saveReminders==='function') try{ window.saveReminders(); }catch(_){}
+          try{ window.renderLists(); }catch(_){}
+        } else if (e.key==='Escape'){
+          inp.value='';
+        }
+      });
+      inp.__add = true;
+    }
+    var q = byId('listSearch'); if (q && !q.__b){ q.addEventListener('input', function(){ try{ window.renderLists(); }catch(_){ } }); q.__b=true; }
+    var t = byId('tagInput'); if (t && !t.__b){ t.addEventListener('input', function(){ try{ window.renderLists(); }catch(_){ } }); t.__b=true; }
+    try{ window.renderLists(); }catch(_){ }
+  });
+
+  // After file load via universal+ loader, re-render
+  var _cdc = window.connectDataFile;
+  if (typeof _cdc === 'function'){
+    window.connectDataFile = async function(){
+      try{ await _cdc(); }catch(_){}
+      try{ window.renderLists(); }catch(_){}
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+
+  function asLower(x){ return String(x||'').trim().toLowerCase(); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+
+  function coerceTags(x){
+    if (!x) return [];
+    if (Array.isArray(x)){
+      var out=[]; for (var i=0;i<x.length;i++){ var v = x[i]; if (typeof v==='string'){ v = asLower(v); if (v) out.push(v); } else if (v && typeof v==='object'){ var n=v.name||v.label||v.tag||v.title; if (n){ n=asLower(n); if(n) out.push(n); } } }
+      var seen={}, uniq=[]; for (var j=0;j<out.length;j++){ if(!seen[out[j]]){ seen[out[j]]=1; uniq.push(out[j]); } } return uniq;
+    }
+    if (typeof x==='string'){ return x.split(/[,\|#; ]+/).map(asLower).filter(Boolean); }
+    if (typeof x==='object'){ return coerceTags(x.tags||x.labels||x.categories); }
+    return [];
+  }
+
+  function normalizeItem(it, idx){
+    if (typeof it === 'string'){
+      return { id: 's-' + idx + '-' + Date.now().toString(36), text: String(it).trim(), tags: [] };
+    }
+    it = it || {};
+    var id = it.id || it.uuid || it.key || it._id || ('n-' + idx + '-' + Date.now().toString(36));
+    var text = it.text || it.title || it.name || it.content || it.body || it.value || it.note || it.task || '';
+    var tags = coerceTags(it.tags||it.labels||it.categories||it.tag||it.label);
+    return { id: String(id), text: String(text).trim(), tags: tags };
+  }
+
+  function normalizeArray(arr){
+    arr = Array.isArray(arr) ? arr : [];
+    var out = []; var seen = {};
+    for (var i=0;i<arr.length;i++){
+      var n = normalizeItem(arr[i], i);
+      if (!n.text && !n.tags.length) continue;
+      if (seen[n.id]){ n.id = n.id + '-' + i; } seen[n.id] = 1;
+      out.push(n);
+    }
+    return out;
+  }
+
+  window.__normalizeAll = function(){
+    try{
+      window.reminders = normalizeArray(window.reminders);
+      window.deleted   = normalizeArray(window.deleted);
+    }catch(_){}
+  };
+
+  try{ window.__normalizeAll(); }catch(_){}
+
+  (function(){
+    var prev = window.renderLists;
+    window.renderLists = function(){
+      try{ window.__normalizeAll(); }catch(_){}
+      if (typeof prev === 'function') return prev();
+    };
+  })();
+
+  (function(){
+    var add = window.handleReminder;
+    window.handleReminder = function(action, id){
+      var r = add && add.apply ? add.apply(this, arguments) : undefined;
+      try{ window.__normalizeAll(); if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+      return r;
+    };
+  })();
+
+  (function(){
+    var origC = window.connectDataFile;
+    if (typeof origC === 'function'){
+      window.connectDataFile = async function(){
+        var res; try{ res = await origC(); }catch(_){}
+        try{ window.__normalizeAll(); if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        return res;
+      };
+    }
+  })();
+})();
+</script>
+
+<script>
+/* === FOOLoop patch (2025-09-22): hard-remove item-destructive buttons === */
+(function(){
+  function removeButtons(scope){ try{ if (window.__ALLOW_DESTRUCTIVE_BUTTONS__) return; }catch(_){}
+    try{
+      var curList = document.getElementById('curList');
+      var binList = document.getElementById('binList');
+      if (curList){
+        curList.querySelectorAll('.minus').forEach(function(n){ n.remove(); });
+      }
+      if (binList){
+        binList.querySelectorAll('.restore, .purge').forEach(function(n){ n.remove(); });
+      }
+    }catch(e){ /* noop */ }
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', removeButtons);
+  } else {
+    removeButtons();
+  }
+  // In case the lists re-render dynamically, observe and re-apply
+  var obs = new MutationObserver(function(){ removeButtons(); });
+  var root = document.getElementById('app') || document.body;
+  try{ obs.observe(root, {childList:true, subtree:true}); }catch(e){}
+})();
+</script>
+<script>
+/* === FOOLoop patch (2025-09-22): disable tag search, include tags in text search === */
+(function(){
+  // Remove tag filter nodes if they exist
+  function nukeTagBar(){
+    try{
+      var row = document.getElementById('tagFilterRow'); if (row) row.remove();
+      var ti  = document.getElementById('tagInput'); if (ti){ ti.value=''; ti.remove(); }
+      var chips = document.getElementById('tagChips'); if (chips) chips.remove();
+    }catch(e){}
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', nukeTagBar);
+  } else {
+    nukeTagBar();
+  }
+  // Prevent any leftover listeners from re-rendering tag filter
+  (function(){
+    var t = document.getElementById('tagInput');
+    if (t){
+      try{ t.replaceWith(document.createComment('tagInput removed')); }catch(_){}
+    }
+  })();
+
+  // Patch renderers' local matches(r) to accept tag hits
+  // Replace the function body of function matches(r){...} with our version
+  try{
+    // Monkey-patch by wrapping window.renderLists and injecting a matcher on first call
+    var _patched = false;
+    var _prev = window.renderLists;
+    window.renderLists = function(){
+      if (!_patched){
+        _patched = true;
+        // Scan all <script> tags and patch their text where function matches(r){...} is defined
+        var scripts = document.querySelectorAll('script');
+        scripts.forEach(function(sc){
+          var txt = sc.textContent;
+          if (!txt) return;
+          // Replace every occurrence of function matches(r){...}
+          var repl = "function matches(r){ var ok=true; if (q){ var txt=(r&&r.text?String(r.text):'').toLowerCase(); var hasTxt=txt.indexOf(q)!==-1; var tags=Array.isArray(r&&r.tags)?r.tags:[]; var hasTag=false; for(var i=0;i<tags.length;i++){ if(String(tags[i]).toLowerCase().indexOf(q)!==-1){ hasTag=true; break; } } ok = hasTxt || hasTag; } return ok; }";
+          var newTxt = txt.replace(/function\\s+matches\\(r\\)\\{[\\s\\S]*?\\}/g, repl);
+          if (newTxt !== txt){
+            // Replace the script by cloning
+            var ns = document.createElement('script');
+            ns.textContent = newTxt;
+            sc.replaceWith(ns);
+          }
+        });
+      }
+      return _prev ? _prev.apply(this, arguments) : undefined;
+    };
+  }catch(e){}
+})();
+</script>
+
+<script>
+(function(){
+  'use strict';
+  (function(){
+    var prev = window.saveReminders;
+    async function writeHandle(h, payload){
+      const w = await h.createWritable(); await w.write(payload); await w.close();
+    }
+    window.saveReminders = async function(){
+      try{ if (typeof prev === 'function') await prev(); }catch(_){}
+      try{
+        var payload = JSON.stringify({ reminders:(window.reminders||[]), deleted:(window.deleted||[]), schema:1 }, null, 2);
+        var handle = (typeof __dataFileHandle!=='undefined' && __dataFileHandle) || (window.__dataFileHandle || null);
+        if (handle && handle.createWritable){ try{ await writeHandle(handle, payload); }catch(_){ } }
+        window.__lastJSONPayload = payload;
+      }catch(e){ try{ console.warn('canonical saveReminders failed', e); }catch(_){ } }
+    };
+  })();
+})();
+</script>
+
+
+<script>
+/* ===== FOOLoop v2.3.14 patch: persistent file handle + search text & tags with highlight ===== */
+(function(){
+  'use strict';
+
+  /* ---------- IndexedDB mini-helpers (no external libs) ---------- */
+  var DB_NAME = 'fooloop-db', STORE = 'kv';
+  function idbOpen(){
+    return new Promise(function(resolve, reject){
+      try{
+        var req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = function(ev){
+          var db = ev.target.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+        };
+        req.onsuccess = function(){ resolve(req.result); };
+        req.onerror = function(e){ reject(e); };
+      }catch(e){ reject(e); }
+    });
+  }
+  function idbGet(key){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        try{
+          var tx = db.transaction(STORE, 'readonly');
+          var os = tx.objectStore(STORE);
+          var r = os.get(key);
+          r.onsuccess = function(){ resolve(r.result); };
+          r.onerror = function(e){ reject(e); };
+        }catch(e){ reject(e); }
+      });
+    });
+  }
+  function idbSet(key, val){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        try{
+          var tx = db.transaction(STORE, 'readwrite');
+          var os = tx.objectStore(STORE);
+          var r = os.put(val, key);
+          r.onsuccess = function(){ resolve(true); };
+          r.onerror = function(e){ reject(e); };
+        }catch(e){ reject(e); }
+      });
+    });
+  }
+
+  /* ---------- File System Access helpers ---------- */
+  async function requestRW(handle){
+    if (!handle) return 'denied';
+    try{
+      if (await handle.queryPermission({mode:'readwrite'}) === 'granted') return 'granted';
+      if (await handle.requestPermission({mode:'readwrite'}) === 'granted') return 'granted';
+    }catch(_){}
+    return 'denied';
+  }
+  async function readFromHandle(h){ const f = await h.getFile(); return await f.text(); }
+  async function writeToHandle(h, text){ const w = await h.createWritable(); await w.write(text); await w.close(); }
+
+  /* ---------- Persistent connect + auto-reconnect ---------- */
+  // Wrap connectDataFile so we store the handle in IndexedDB
+  (function(){
+    var origConnect = window.connectDataFile;
+    if (typeof origConnect !== 'function') return;
+    window.connectDataFile = async function(){
+      const res = await origConnect();
+      try{
+        // If any wrapper stored a handle globally, persist it
+        var h = (typeof __dataFileHandle!=='undefined' && __dataFileHandle) || (window.__dataFileHandle || null);
+        if (h){ await idbSet('dataHandle', h); }
+      }catch(_){}
+      return res;
+    };
+  })();
+
+  // On load, try to auto-reconnect to last handle
+  document.addEventListener('DOMContentLoaded', (async function(){
+    try{
+      // Skip if already connected
+      var already = (typeof __dataFileHandle!=='undefined' && __dataFileHandle) || (window.__dataFileHandle || null);
+      if (already) return;
+
+      var h = await idbGet('dataHandle');
+      if (!h) return;
+      if (await requestRW(h) !== 'granted') return;
+
+      // Use the handle
+      try{ window.__dataFileHandle = h; }catch(_){}
+      try{ __dataFileHandle = h; }catch(_){}
+      // Load content
+      var text = '';
+      try{ text = await readFromHandle(h); }catch(_){}
+      var data = {};
+      try{ data = JSON.parse(text || '{}'); }catch(_){ data = {}; }
+      window.reminders = Array.isArray(data.reminders) ? data.reminders : (window.reminders||[]);
+      window.deleted   = Array.isArray(data.deleted)   ? data.deleted   : (window.deleted||[]);
+      // Update UI
+      var fs = document.getElementById('fileStatus');
+      if (fs) fs.textContent = 'Auto-connected: ' + (h.name || 'data.json');
+      if (typeof window.toast === 'function') window.toast('Auto-connected previous file.');
+      if (typeof window.renderLists === 'function') window.renderLists();
+    }catch(e){
+      try{ console.warn('Auto-connect skipped:', e); }catch(_){}
+    }
+  }));
+
+  /* ---------- Search upgrades: match in text OR tags + highlight ---------- */
+  (function(){
+    function byId(id){ return document.getElementById(id); }
+    function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+    function hi(s, query){
+      s = String(s||''); var q = String(query||'').trim();
+      if (!q) return esc(s);
+      try{
+        var escRe = /[.*+?^${}()|[\]\\]/g;
+        var re = new RegExp(q.replace(escRe, '\\$&'), 'ig');
+        var out = '', last = 0, m;
+        while ((m = re.exec(s))){
+          out += esc(s.slice(last, m.index)) + '<mark>' + esc(m[0]) + '</mark>';
+          last = m.index + m[0].length;
+        }
+        return out + esc(s.slice(last));
+      }catch(_){ return esc(s); }
+    }
+
+    var prevRender = window.renderLists;
+    window.renderLists = function(){
+      try{
+        var cur = byId('curList'); var bin = byId('binList');
+        if (!cur || !bin){ if (typeof prevRender==='function') return prevRender(); else return; }
+        var q = (byId('listSearch') && byId('listSearch').value || '').toLowerCase().trim();
+
+        function matches(r){
+          if (!q) return true;
+          var textHit = String(r.text||'').toLowerCase().indexOf(q)!==-1;
+          var tagHit  = (Array.isArray(r.tags)? r.tags : []).some(function(t){ return String(t).toLowerCase().indexOf(q)!==-1; });
+          return textHit || tagHit;
+        }
+
+        function rowHTML(r){
+          var tags = Array.isArray(r.tags)? r.tags : [];
+          var textHtml = hi(r.text||'', q);
+          var tagHTML = tags.length ? ' <span class="tags">'+tags.map(function(t){ return '<span class="tag-pill">'+hi('#'+t, q)+'</span>'; }).join(' ')+'</span>' : '';
+          return '<div class="item" data-id="'+esc(r.id)+'">'
+               + '<span class="text">'+textHtml+'</span>' + tagHTML
+               + ' <span class="edit" title="Edit">✏️</span>'
+               + ' <span class="minus" title="Delete">−</span>'
+               + '</div>';
+        }
+        function binRowHTML(r){
+          var tags = Array.isArray(r.tags)? r.tags : [];
+          var textHtml = hi(r.text||'', q);
+          var tagHTML = tags.length ? ' <span class="tags">'+tags.map(function(t){ return '<span class="tag-pill">'+hi('#'+t, q)+'</span>'; }).join(' ')+'</span>' : '';
+          return '<div class="item" data-id="'+esc(r.id)+'">'
+               + '<span class="text">'+textHtml+'</span>' + tagHTML
+               + ' <span class="restore" title="Restore">↺</span>'
+               + ' <span class="purge" title="Delete Forever">✕</span>'
+               + '</div>';
+        }
+
+        var list = (Array.isArray(window.reminders)? window.reminders : []).filter(matches);
+        cur.innerHTML = list.map(rowHTML).join('');
+        var dlist = (Array.isArray(window.deleted)? window.deleted : []).filter(matches);
+        bin.innerHTML = dlist.map(binRowHTML).join('');
+
+        var sc = byId('searchCount'); if (sc){ sc.textContent = q ? (list.length + ' match(es)') : ''; }
+
+        // Empty-state placeholders
+        if (!cur.querySelector('.item')) cur.innerHTML = '<div class="empty-state">No current reminders yet. Use the box above to add one.</div>';
+        if (!bin.querySelector('.item')) bin.innerHTML = '<div class="empty-state">Recycle Bin is empty.</div>';
+
+        // Re-bind row delegates if your app uses them
+        try{ if (typeof bindRowDelegates==='function') bindRowDelegates(); }catch(_){}
+      }catch(e){
+        try{ console.error('renderLists (patched) error', e); }catch(_){}
+      }
+    };
+  })();
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  /* ===== FOOLoop v2.3.15: solid auto-link JSON via FS Access + IndexedDB ===== */
+
+  var DB_NAME = 'fooloop-db', STORE = 'kv', KEY = 'dataHandle';
+  function idbOpen(){
+    return new Promise(function(resolve, reject){
+      try{
+        var req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = function(ev){
+          var db = ev.target.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+        };
+        req.onsuccess = function(){ resolve(req.result); };
+        req.onerror = function(e){ reject(e); };
+      }catch(e){ reject(e); }
+    });
+  }
+  function idbGet(key){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        try{
+          var tx = db.transaction(STORE, 'readonly');
+          var os = tx.objectStore(STORE);
+          var r = os.get(key);
+          r.onsuccess = function(){ resolve(r.result); };
+          r.onerror = function(e){ reject(e); };
+        }catch(e){ reject(e); }
+      });
+    });
+  }
+  function idbSet(key, val){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        try{
+          var tx = db.transaction(STORE, 'readwrite');
+          var os = tx.objectStore(STORE);
+          var r = os.put(val, key);
+          r.onsuccess = function(){ resolve(true); };
+          r.onerror = function(e){ reject(e); };
+        }catch(e){ reject(e); }
+      });
+    });
+  }
+  function idbDel(key){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        try{
+          var tx = db.transaction(STORE, 'readwrite');
+          var os = tx.objectStore(STORE);
+          var r = os.delete(key);
+          r.onsuccess = function(){ resolve(true); };
+          r.onerror = function(e){ reject(e); };
+        }catch(e){ reject(e); }
+      });
+    });
+  }
+
+  async function ensureRW(handle){
+    if (!handle) return 'denied';
+    try{
+      var q = await handle.queryPermission({mode:'readwrite'});
+      if (q === 'granted') return 'granted';
+      var r = await handle.requestPermission({mode:'readwrite'});
+      if (r === 'granted') return 'granted';
+    }catch(_){}
+    return 'denied';
+  }
+  async function readHandle(h){ const f = await h.getFile(); return await f.text(); }
+  async function writeHandle(h, text){ const w = await h.createWritable(); await w.write(text); await w.close(); }
+
+  function setStatus(msg){
+    var el = document.getElementById('fileStatus');
+    if (el) el.textContent = msg || '';
+  }
+  function toast(msg){
+    try{ (window.toast || function(m){ setStatus(m); setTimeout(()=>setStatus(''), 1800); })(msg); }catch(_){}
+  }
+
+  // Expose a "Forget" method for switching files
+  window.forgetLinkedJson = async function(){
+    await idbDel(KEY);
+    try{ window.__dataFileHandle = null; }catch(_){}
+    setStatus('Link cleared.');
+    toast('Link cleared');
+  };
+
+  // Create a remembered link via showOpenFilePicker
+  async function linkJsonInteractive(){
+    if (!window.showOpenFilePicker){
+      alert('Your browser does not support File System Access API. Please use the built-in Import/Export instead.');
+      return;
+    }
+    try{
+      const [h] = await showOpenFilePicker({ types: [{ description:'JSON', accept:{ 'application/json':['.json']} }] });
+      if (!h) return;
+      const perm = await ensureRW(h);
+      if (perm !== 'granted'){
+        alert('Permission denied. Unable to link file.');
+        return;
+      }
+      // Store handle in IndexedDB
+      await idbSet(KEY, h);
+      // Make globally visible for existing app code
+      try{ window.__dataFileHandle = h; }catch(_){}
+      try{ __dataFileHandle = h; }catch(_){}
+
+      // Try reading and applying data
+      let text = await readHandle(h);
+      let data = {};
+      try{ data = JSON.parse(text || '{}'); }catch(e){ data = {}; }
+      window.reminders = Array.isArray(data.reminders) ? data.reminders : (window.reminders||[]);
+      window.deleted   = Array.isArray(data.deleted)   ? data.deleted   : (window.deleted||[]);
+      if (typeof window.renderLists === 'function') window.renderLists();
+      setStatus('Linked: ' + (h.name || 'reminders.json'));
+      toast('JSON linked & remembered.');
+    }catch(e){
+      console.warn('linkJsonInteractive error', e);
+      alert('Linking failed: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  // Button hookup
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('btnLinkJson');
+    if (btn) btn.addEventListener('click', linkJsonInteractive);
+  });
+
+  // Auto-reconnect on load
+  document.addEventListener('DOMContentLoaded', (async function(){
+    try{
+      var h = await idbGet(KEY);
+      if (!h) { setStatus('No linked JSON. Click “Link JSON (remember)”.'); return; }
+      if (await ensureRW(h) !== 'granted'){ setStatus('Re-link needed. Click “Link JSON (remember)”.'); return; }
+      try{ window.__dataFileHandle = h; }catch(_){}
+      try{ __dataFileHandle = h; }catch(_){}
+      // Read and populate
+      var text = await readHandle(h);
+      var data = {}; try{ data = JSON.parse(text || '{}'); }catch(_){}
+      window.reminders = Array.isArray(data.reminders) ? data.reminders : (window.reminders||[]);
+      window.deleted   = Array.isArray(data.deleted)   ? data.deleted   : (window.deleted||[]);
+      if (typeof window.renderLists === 'function') window.renderLists();
+      setStatus('Auto-connected: ' + (h.name || 'reminders.json'));
+      toast('Auto-connected previous file.');
+    }catch(e){
+      console.warn('auto-connect failed', e);
+      setStatus('Auto-connect failed. Click “Link JSON (remember)”.');
+    }
+  }));
+
+  // Last-wins saveReminders always writes to the remembered handle (when available)
+  (function(){
+    var prev = window.saveReminders;
+    window.saveReminders = async function(){
+      try{ if (typeof prev === 'function') await prev(); }catch(_){}
+      try{
+        var payload = JSON.stringify({reminders:(window.reminders||[]), deleted:(window.deleted||[]), schema:1}, null, 2);
+        var h = (typeof window.__dataFileHandle!=='undefined' && window.__dataFileHandle) ? window.__dataFileHandle : null;
+        if (h && h.createWritable){
+          try{
+            await writeHandle(h, payload);
+            window.__lastJSONPayload = payload;
+            setStatus('Saved to: ' + (h.name || 'reminders.json'));
+          }catch(e){
+            console.warn('save to handle failed', e);
+            setStatus('Save failed (handle).');
+          }
+        } else {
+          window.__lastJSONPayload = payload; // for Export JSON fallback
+        }
+      }catch(e){
+        console.warn('canonical saveReminders failed', e);
+      }
+    };
+  })();
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+  var activeLoopTag = null;
+
+  function getActiveLoopTag(){ return activeLoopTag||''; }
+  function setActiveLoopTag(tag){
+    activeLoopTag = (tag||'').trim();
+    try{ localStorage.setItem('loopTag', activeLoopTag); }catch(_){}
+    renderTagButtons();
+    try{ if (typeof window.restartLoop==='function') window.restartLoop(); else if (typeof window.startLoop==='function'){ window.stopLoop&&window.stopLoop(); window.startLoop(); } }catch(_){}
+    try{ (window.toast||console.log)('Looping: ' + (activeLoopTag?('#'+activeLoopTag):'All')); }catch(_){}
+  }
+
+  function getAllTags(){
+    var list = Array.isArray(window.reminders)? window.reminders : [];
+    var st = new Set();
+    for (var i=0;i<list.length;i++){
+      var tags = Array.isArray(list[i] && list[i].tags) ? list[i].tags : [];
+      for (var j=0;j<tags.length;j++){
+        var t = String(tags[j]||'').trim(); if (t) st.add(t);
+      }
+    }
+    return Array.from(st).sort(function(a,b){ return a.localeCompare(b); });
+  }
+
+  function renderTagButtons(){
+    var bar = byId('tagLoopBar'); if (!bar) return;
+    var tags = getAllTags();
+    var cur = (getActiveLoopTag()||'').toLowerCase();
+    var html = '';
+    html += '<button class="tagbtn ' + (cur===''?'active':'') + '" data-tag="">All</button>';
+    for (var i=0;i<tags.length;i++){
+      var t = tags[i];
+      html += '<button class="tagbtn ' + (cur===String(t).toLowerCase()?'active':'') + '" data-tag="'+esc(t)+'">#'+esc(t)+'</button>';
+    }
+    bar.innerHTML = html;
+    var btns = bar.querySelectorAll('.tagbtn');
+    for (var k=0;k<btns.length;k++){
+      btns[k].addEventListener('click', function(ev){
+        var tag = this.getAttribute('data-tag') || '';
+        setActiveLoopTag(tag);
+      });
+    }
+  }
+
+  function getLoopList(){
+    var list = Array.isArray(window.reminders)? window.reminders : [];
+    var tag = getActiveLoopTag();
+    if (!tag) return list;
+    var tagLower = tag.toLowerCase();
+    return list.filter(function(r){
+      var tags = Array.isArray(r && r.tags) ? r.tags : [];
+      for (var i=0;i<tags.length;i++){
+        if (String(tags[i]||'').toLowerCase() === tagLower) return true;
+      }
+      return false;
+    });
+  }
+
+  // Patch startLoop to use getLoopList()
+  (function(){
+    var prevStart = window.startLoop;
+    var prevStop  = window.stopLoop;
+    window.startLoop = function(){
+      try{ if (window.loopTimer) clearInterval(window.loopTimer); }catch(_){}
+      function nextIndex(len){
+        try{
+          var mode = (window.loopMode||'rand').toLowerCase();
+          if (mode === 'rand') return Math.floor(Math.random()*len);
+          window.loopIdx = (window.loopIdx||0);
+          window.loopIdx = (window.loopIdx+1) % len;
+          return window.loopIdx;
+        }catch(_){ return Math.floor(Math.random()*len); }
+      }
+      function tick(){
+        try{
+          var list = getLoopList();
+          if (!list.length){ window.setLoopLabel && window.setLoopLabel(''); return; }
+          var i = nextIndex(list.length);
+          var txt = String(list[i] && list[i].text || '').trim();
+          window.setLoopLabel && window.setLoopLabel(txt);
+        }catch(e){ try{ console.error('loop tick error', e); }catch(_){ } }
+      }
+      try{
+        var sp = parseInt(window.loopSpeed||2000,10); if (isNaN(sp) || sp<500) sp = 2000;
+        window.loopTimer = setInterval(tick, sp);
+        tick();
+      }catch(_){}
+    };
+    window.stopLoop = function(){ try{ if (window.loopTimer) clearInterval(window.loopTimer); window.loopTimer=null; }catch(_){ } };
+    window.restartLoop = function(){ if (window.loopTimer) window.startLoop(); };
+  })();
+
+  // Create the bar near loop controls on load
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      if (!byId('tagLoopBar')){
+        var speed = byId('loopSpeed');
+        if (speed && speed.parentNode){
+          var bar = document.createElement('div'); bar.id='tagLoopBar'; bar.className='tag-loop-bar';
+          speed.parentNode.insertBefore(bar, speed.nextSibling);
+        }
+      }
+      // load saved preference
+      try{ var saved = localStorage.getItem('loopTag') || ''; if (saved) activeLoopTag = saved; }catch(_){}
+      renderTagButtons();
+    }catch(_){}
+  });
+
+  // Also re-render the bar whenever lists are re-rendered
+  (function(){
+    var prevRender = window.renderLists;
+    window.renderLists = function(){
+      try{ if (typeof prevRender==='function') prevRender(); }catch(_){}
+      try{ renderTagButtons(); }catch(_){}
+    };
+  })();
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.20: rock-solid auto-connect + reload from linked JSON === */
+(function(){
+  'use strict';
+  var DB_NAME='fooloop-db', STORE='kv', KEY='dataHandle';
+  function byId(id){ return document.getElementById(id); }
+  function setStatus(msg){ var el = byId('fileStatus'); if (el) el.textContent = msg||''; }
+  function toast(msg){ try{ (window.toast||console.log)(msg); }catch(_){ console.log(msg); } }
+
+  function idbOpen(){
+    return new Promise(function(res, rej){
+      try{
+        var r = indexedDB.open(DB_NAME,1);
+        r.onupgradeneeded = function(ev){
+          var db = ev.target.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+        };
+        r.onsuccess = function(){ res(r.result); };
+        r.onerror = function(e){ rej(e); };
+      }catch(e){ rej(e); }
+    });
+  }
+  function idbGet(k){
+    return idbOpen().then(function(db){
+      return new Promise(function(res, rej){
+        try{
+          var tx = db.transaction(STORE,'readonly');
+          var os = tx.objectStore(STORE);
+          var req = os.get(k);
+          req.onsuccess = function(){ res(req.result); };
+          req.onerror = function(e){ rej(e); };
+        }catch(e){ rej(e); }
+      });
+    });
+  }
+  function idbSet(k,v){
+    return idbOpen().then(function(db){
+      return new Promise(function(res, rej){
+        try{
+          var tx = db.transaction(STORE,'readwrite');
+          var os = tx.objectStore(STORE);
+          var req = os.put(v,k);
+          req.onsuccess = function(){ res(true); };
+          req.onerror = function(e){ rej(e); };
+        }catch(e){ rej(e); }
+      });
+    });
+  }
+
+  async function ensureRW(handle){
+    if (!handle) return 'denied';
+    try{
+      var q = await handle.queryPermission({mode:'readwrite'});
+      if (q === 'granted') return 'granted';
+      var r = await handle.requestPermission({mode:'readwrite'});
+      if (r === 'granted') return 'granted';
+    }catch(_){}
+    return 'denied';
+  }
+
+  async function readJSONFromHandle(h){
+    const f = await h.getFile(); const text = await f.text();
+    try{ return JSON.parse(text||'{}'); }catch(_){ return {}; }
+  }
+
+  async function writeJSONToHandle(h, data){
+    const w = await h.createWritable();
+    await w.write(JSON.stringify(data, null, 2));
+    await w.close();
+  }
+
+  async function applyData(data){
+    try{
+      window.reminders = Array.isArray(data.reminders)? data.reminders : (window.reminders||[]);
+      window.deleted   = Array.isArray(data.deleted)?   data.deleted   : (window.deleted||[]);
+      if (typeof window.renderLists === 'function') window.renderLists();
+    }catch(e){ console.warn('applyData error', e); }
+  }
+
+  async function autoConnect(){
+    setStatus('Attempting auto-connect…');
+    try{
+      var h = await idbGet(KEY);
+      if (!h){ setStatus('No linked JSON. Use “Link JSON”.'); return false; }
+      if (await ensureRW(h) !== 'granted'){
+        setStatus('Re-link needed. Tap “Link JSON”.');
+        return false;
+      }
+      try{ window.__dataFileHandle = h; }catch(_){}
+      try{ __dataFileHandle = h; }catch(_){}
+      var data = await readJSONFromHandle(h);
+      await applyData(data);
+      setStatus('Auto-connected: '+(h.name||'reminders.json'));
+      toast('Auto-connected previous file.');
+      return true;
+    }catch(e){
+      console.warn('autoConnect failed:', e);
+      setStatus('Auto-connect failed. Tap “Link JSON”.');
+      return false;
+    }
+  }
+
+  // Strengthen Link JSON flow (if present), persist handle immediately
+  document.addEventListener('DOMContentLoaded', function(){
+    var linkBtn = byId('btnLinkJson');
+    if (linkBtn && window.showOpenFilePicker){
+      linkBtn.addEventListener('click', async function(){
+        try{
+          const [h] = await showOpenFilePicker({types:[{description:'JSON', accept:{'application/json':['.json']}}]});
+          if (!h) return;
+          if (await ensureRW(h) !== 'granted'){ toast('Permission denied.'); return; }
+          await idbSet(KEY, h);
+          try{ window.__dataFileHandle = h; }catch(_){}
+          try{ __dataFileHandle = h; }catch(_){}
+          var data = await readJSONFromHandle(h);
+          await applyData(data);
+          setStatus('Linked: '+(h.name||'reminders.json'));
+          toast('JSON linked & remembered.');
+        }catch(e){
+          console.warn('Link JSON failed', e);
+          toast('Linking failed.');
+        }
+      });
+    }
+
+    // Add a manual "Reload" safeguard if needed
+    if (!byId('btnReloadJson')){
+      var bar = document.getElementById('fsToolbar') || document.body;
+      var btn = document.createElement('button');
+      btn.id = 'btnReloadJson'; btn.className = 'btn secondary';
+      btn.textContent = 'Reload JSON';
+      btn.title = 'Reload from linked file';
+      btn.style.marginLeft = '.25rem';
+      (bar.firstElementChild || bar).appendChild(btn);
+      btn.addEventListener('click', async function(){
+        try{
+          var h = window.__dataFileHandle;
+          if (!h){ toast('No linked file. Tap “Link JSON”.'); return; }
+          if (await ensureRW(h) !== 'granted'){ toast('Permission needed. Re-link.'); return; }
+          var data = await readJSONFromHandle(h);
+          await applyData(data);
+          setStatus('Reloaded: '+(h.name||'reminders.json'));
+          toast('Reloaded.');
+        }catch(e){ console.warn('Reload failed', e); toast('Reload failed'); }
+      });
+    }
+  });
+
+  // Run auto-connect once on load
+  document.addEventListener('DOMContentLoaded', function(){ autoConnect(); });
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.21: resilient loop bootstrap === */
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  // Fallback label setter: update #reminder if setLoopLabel missing
+  if (typeof window.setLoopLabel !== 'function'){
+    window.setLoopLabel = function(txt){
+      var el = byId('reminder');
+      if (el) el.textContent = String(txt||'');
+    };
+  }
+
+  // Ensure safe loop engine even if earlier overrides failed
+  if (typeof window.startLoop !== 'function' || typeof window.stopLoop !== 'function'){
+    (function(){
+      window.stopLoop = function(){ try{ if (window.loopTimer) clearInterval(window.loopTimer); }catch(_){ } window.loopTimer=null; };
+      window.startLoop = function(){
+        try{ if (window.loopTimer) clearInterval(window.loopTimer); }catch(_){}
+        function pick(list){
+          if (!list || !list.length){ window.setLoopLabel(''); return; }
+          var mode = (window.loopMode||'rand').toLowerCase();
+          if (mode === 'next'){
+            window.loopIdx = (window.loopIdx||0);
+            var idx = window.loopIdx % list.length;
+            window.loopIdx = (window.loopIdx+1) % list.length;
+            return list[idx];
+          } else {
+            return list[Math.floor(Math.random()*list.length)];
+          }
+        }
+        function curList(){
+          // Prefer tag-filtered list if provided by patch
+          if (typeof window._loopTagState==='object' && window._loopTagState.getLoopList){
+            return window._loopTagState.getLoopList();
+          }
+          return Array.isArray(window.reminders)? window.reminders : [];
+        }
+        function tick(){
+          try{
+            var list = curList();
+            var r = pick(list);
+            var txt = r ? String(r.text||'') : '';
+            window.setLoopLabel(txt);
+          }catch(e){ /* swallow */ }
+        }
+        var sp = parseInt(window.loopSpeed||2000, 10); if (isNaN(sp)||sp<500) sp=2000;
+        window.loopTimer = setInterval(tick, sp);
+        tick();
+      };
+    })();
+  }
+
+  // Kick the loop off regardless of auto-connect timing, then re-kick when data loads
+  document.addEventListener('DOMContentLoaded', function(){
+    // Initial render if available
+    try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+    // Start loop shortly after load (uses whatever data is present; will be re-kicked on connect)
+    setTimeout(function(){
+      try{ window.startLoop && window.startLoop(); }catch(_){}
+    }, 150);
+
+    // When our auto-connect in v2.3.20 finishes applying data, it sets status/loads lists.
+    // Add a small observer to restart the loop once reminders become available.
+    var restarted = false;
+    var iv = setInterval(function(){
+      try{
+        var list = Array.isArray(window.reminders) ? window.reminders : [];
+        if (!restarted && list.length){
+          restarted = true;
+          try{ window.startLoop && window.startLoop(); }catch(_){}
+          clearInterval(iv);
+        }
+      }catch(_){ clearInterval(iv); }
+    }, 500);
+    setTimeout(function(){ try{ clearInterval(iv); }catch(_){} }, 8000); // stop polling after 8s
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+
+  function ensureTagToggle(){
+    if (!byId('tagToggle')){
+      // create a toggle button next to loopSpeed
+      var speed = byId('loopSpeed');
+      if (speed && speed.parentNode){
+        var btn = document.createElement('button');
+        btn.id = 'tagToggle'; btn.type = 'button';
+        btn.textContent = 'Tags';
+        btn.title = 'Show/Hide tag buttons';
+        btn.className = 'btn';
+        speed.parentNode.insertBefore(btn, speed.nextSibling);
+      }
+    }
+    var tgl = byId('tagToggle');
+    if (tgl && !tgl.__bound){
+      tgl.addEventListener('click', function(){
+        var bar = byId('tagLoopBar'); if (!bar) return;
+        bar.classList.toggle('open');
+      });
+      tgl.__bound = true;
+    }
+  }
+
+  // Make sure the tag bar is placed AFTER the controls
+  function ensureTagBarPlacement(){
+    var speed = byId('loopSpeed');
+    var bar = byId('tagLoopBar');
+    if (speed && bar){
+      var parent = speed.parentNode;
+      // If bar is not after speed, move it
+      if (bar.previousElementSibling !== speed){
+        try{ parent.insertBefore(bar, speed.nextSibling); }catch(_){}
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureTagToggle();
+    ensureTagBarPlacement();
+  });
+
+  // Re-run after any list re-render (since some UIs rebuild parts of the header)
+  (function(){
+    var prev = window.renderLists;
+    window.renderLists = function(){
+      try{ if (typeof prev==='function') prev(); }catch(_){}
+      try{ ensureTagToggle(); ensureTagBarPlacement(); }catch(_){}
+    };
+  })();
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function ensureSpeedOptions(){
+    var sel = byId('loopSpeed'); if (!sel) return;
+    if (sel.options && sel.options.length > 0) return; // already has options
+
+    var speeds = [1000, 2000, 3000, 4000, 5000, 8000];
+    sel.innerHTML = speeds.map(function(ms){
+      var label = (ms/1000)+'s';
+      return '<option value="'+ms+'">'+label+'</option>';
+    }).join('');
+
+    // pick saved or default
+    var saved = 0;
+    try{ saved = parseInt(localStorage.getItem('loopSpeedMs')||'0',10)||0; }catch(_){}
+    var def = (typeof window.loopSpeed==='number' && window.loopSpeed>0) ? window.loopSpeed : 3000;
+    var ms = saved || def;
+    if (!speeds.includes(ms)) ms = 3000;
+    sel.value = String(ms);
+    window.loopSpeed = ms;
+    sel.addEventListener('change', function(){
+      var v = parseInt(sel.value, 10) || 3000;
+      window.loopSpeed = v;
+      try{ localStorage.setItem('loopSpeedMs', String(v)); }catch(_){}
+      try{ if (typeof window.restartLoop==='function') window.restartLoop(); else if (typeof window.startLoop==='function'){ window.stopLoop&&window.stopLoop(); window.startLoop(); } }catch(_){}
+    });
+  }
+  document.addEventListener('DOMContentLoaded', ensureSpeedOptions);
+  // Also re-run after any list render to be safe
+  (function(){
+    var prev = window.renderLists;
+    window.renderLists = function(){
+      try{ if (typeof prev==='function') prev(); }catch(_){}
+      try{ ensureSpeedOptions(); }catch(_){}
+    };
+  })();
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.25: restore robust delegates for item actions === */
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+
+  function bindContainer(el, handlers){
+    if (!el || el.__robustDelegated) return;
+    el.addEventListener('click', function(ev){
+      var t = ev.target;
+      // Normalize to the closest actionable element inside the row
+      var row = t && t.closest ? t.closest('.item') : null;
+      if (!row) return;
+      var id = row.getAttribute('data-id');
+      // Check each handler
+      for (var i=0;i<handlers.length;i++){
+        var h = handlers[i];
+        var btn = (t.classList && t.classList.contains(h.cls)) ? t : (t.closest && t.closest('.'+h.cls));
+        if (btn){
+          try { h.fn(id); } catch(_){}
+          ev.stopImmediatePropagation();
+          ev.preventDefault();
+          return;
+        }
+      }
+    }, true); // capture so we win over fragile listeners
+    el.__robustDelegated = true;
+  }
+
+  function addRobustDelegates(){
+    var cur = byId('curList');
+    var bin = byId('binList');
+    bindContainer(cur, [
+      {cls:'edit',  fn:function(id){ if (typeof window.editReminder==='function') window.editReminder(id); }},
+      {cls:'minus', fn:function(id){ if (typeof window.handleReminder==='function') window.handleReminder('delete', id); }}
+    ]);
+    bindContainer(bin, [
+      {cls:'restore', fn:function(id){ if (typeof window.handleReminder==='function') window.handleReminder('restore', id); }},
+      {cls:'purge',   fn:function(id){ if (typeof window.handleReminder==='function') window.handleReminder('purge', id); }}
+    ]);
+  }
+
+  // Run now and after each re-render
+  document.addEventListener('DOMContentLoaded', addRobustDelegates);
+  var prevRender = window.renderLists;
+  window.renderLists = function(){
+    try{ if (typeof prevRender==='function') prevRender(); }catch(_){}
+    try{ addRobustDelegates(); }catch(_){}
+  };
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.26: define missing editReminder/handleReminder shims === */
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function toast(msg){ try{ (window.toast||console.log)(msg); }catch(_){ console.log(msg); } }
+
+  function normTags(input){
+    if (Array.isArray(input)) return input.filter(Boolean).map(String).map(function(s){return s.trim();}).filter(Boolean);
+    var s = String(input||'').trim();
+    if (!s) return [];
+    // accept comma or space separated; support # prefixes
+    return s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+  }
+
+  if (typeof window.editReminder !== 'function'){
+    window.editReminder = function(id){
+      try{
+        var list = Array.isArray(window.reminders)? window.reminders : [];
+        var idx = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+        if (idx === -1){ toast('Item not found'); return; }
+        var r = list[idx];
+        var newText = prompt('Edit reminder text:', String(r.text||''));
+        if (newText === null) return; // cancelled
+        var currentTags = Array.isArray(r.tags)? r.tags.join(', ') : '';
+        var newTags = prompt('Edit tags (comma or space separated):', currentTags);
+        if (newTags !== null){
+          r.tags = normTags(newTags);
+        }
+        r.text = String(newText||'').trim();
+        window.reminders[idx] = r;
+        try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+        try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        toast('Edit saved.');
+      }catch(e){ console.warn('editReminder shim error', e); }
+    };
+  }
+
+  if (typeof window.handleReminder !== 'function'){
+    window.handleReminder = function(action, id){
+      try{
+        var rem = Array.isArray(window.reminders)? window.reminders : (window.reminders = []);
+        var bin = Array.isArray(window.deleted)? window.deleted : (window.deleted = []);
+        if (action === 'add'){
+          var inp = byId('newText'); var txt = (inp && inp.value || '').trim();
+          if (!txt){ toast('Enter a reminder'); return; }
+          var obj = { id: String(Date.now()), text: txt, tags: [] };
+          rem.push(obj);
+          if (inp) inp.value='';
+          toast('Added.');
+        } else if (action === 'delete'){
+          var i = rem.findIndex(function(r){ return String(r && r.id) === String(id); });
+          if (i>-1){ bin.push(rem[i]); rem.splice(i,1); toast('Moved to bin.'); }
+        } else if (action === 'restore'){
+          var j = bin.findIndex(function(r){ return String(r && r.id) === String(id); });
+          if (j>-1){ rem.push(bin[j]); bin.splice(j,1); toast('Restored.'); }
+        } else if (action === 'purge'){
+          var k = bin.findIndex(function(r){ return String(r && r.id) === String(id); });
+          if (k>-1){ bin.splice(k,1); toast('Deleted forever.'); }
+        }
+        try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+        try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+      }catch(e){ console.warn('handleReminder shim error', e); }
+    };
+  }
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.27: inline editor restored for editReminder === */
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+  function toast(msg){ try{ (window.toast||console.log)(msg); }catch(_){ console.log(msg); } }
+  function cssEscape(sel){
+    // Very small escape for attribute selectors
+    return String(sel||'').replace(/(["\\])/g, '\\$1').replace(/]/g,'\\]');
+  }
+  function normalizeTags(arr){
+    if (Array.isArray(arr)) {
+      return arr.map(function(t){ return String(t||'').replace(/^#/, '').trim(); })
+                .filter(Boolean);
+    }
+    var s = String(arr||'').trim();
+    if (!s) return [];
+    return s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+  }
+
+  // Lightweight inline editor UI
+  function buildInlineEditor(r){
+    var wrapper = document.createElement('div');
+    wrapper.className = 'inline-editor';
+    wrapper.innerHTML = ''
+      + '<div class="ie-row">'
+      +   '<textarea class="ie-text" rows="3" style="width:100%; resize:vertical;">'+esc(String(r.text||''))+'</textarea>'
+      + '</div>'
+      + '<div class="ie-row ie-tags">'
+      +   '<div class="chips" style="display:flex;flex-wrap:wrap;gap:.35rem;"></div>'
+      +   '<input class="ie-tag-input" type="text" placeholder="Add tag and press Enter" style="margin-top:.35rem;min-height:34px;padding:.35rem .5rem; width:100%;">'
+      + '</div>'
+      + '<div class="ie-row ie-actions" style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem;">'
+      +   '<button class="ie-save">Save</button>'
+      +   '<button class="ie-cancel">Cancel</button>'
+      + '</div>';
+
+    var cur = Array.isArray(r.tags) ? r.tags.slice() : [];
+    var chips = wrapper.querySelector('.chips');
+    var input = wrapper.querySelector('.ie-tag-input');
+    var txt   = wrapper.querySelector('.ie-text');
+    var saveBtn = wrapper.querySelector('.ie-save');
+    var cancelBtn = wrapper.querySelector('.ie-cancel');
+
+    /* removed old renderChips */);
+          chips.appendChild(pill);
+        })(cur[i], i);
+      }
+    }
+
+    function addFromInput(){
+      var s = String(input.value||'').trim();
+      if (!s) return;
+      var toks = s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+      if (!toks.length) return;
+      for (var i=0;i<toks.length;i++){
+        if (!cur.some(function(x){ return x.toLowerCase()===toks[i].toLowerCase(); })){
+          cur.push(toks[i]);
+        }
+      }
+      input.value = '';
+      renderChips();
+    }
+
+    input.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter'){ ev.preventDefault(); addFromInput(); }
+      else if (ev.key === 'Backspace' && !input.value && cur.length){
+        cur.pop(); renderChips();
+      }
+    });
+
+    saveBtn.addEventListener('click', function(){
+      try{
+        r.text = String(txt.value||'').trim();
+        r.tags = normalizeTags(cur);
+        if (typeof window.saveReminders === 'function') window.saveReminders();
+        toast('Edit operation saved.');
+        if (typeof window.renderLists === 'function') window.renderLists();
+      }catch(e){ console.warn('inline save failed', e); }
+    });
+
+    cancelBtn.addEventListener('click', function(){
+      if (typeof window.renderLists === 'function') window.renderLists();
+    });
+
+    renderChips();
+    setTimeout(function(){ try{ txt.focus(); txt.select(); }catch(_){ } }, 0);
+    return wrapper;
+  }
+
+  // Wire editReminder to open inline editor inside the row
+  window.editReminder = function(id){
+    try{
+      var list = Array.isArray(window.reminders) ? window.reminders : [];
+      var idx = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+      if (idx === -1){ toast('Item not found'); return; }
+      var r = list[idx];
+      var row = document.querySelector('.item[data-id="'+cssEscape(id)+'"]');
+      if (!row) { toast('Row not found'); return; }
+      // Avoid double-editor
+      if (row.__editing) return;
+      row.__editing = true;
+
+      // Preserve height to avoid jumping
+      var rect = row.getBoundingClientRect();
+      row.style.minHeight = rect.height + 'px';
+
+      // Replace row content with the editor
+      row.innerHTML = '';
+      row.appendChild(buildInlineEditor(r));
+    }catch(e){
+      console.warn('editReminder (inline) error', e);
+    }
+  };
+})();
+</script>
+
+
+<script>
+(function(){
+  'use strict';
+  // Enhance the inline editor's chip removal with event delegation
+  // This patches the buildInlineEditor created earlier without redefining it entirely.
+  // We monkey-patch by wrapping the existing function if present.
+  try{
+    var oldBuild = window.buildInlineEditor;
+  }catch(_){}
+  // If buildInlineEditor is not globally accessible, re-define a delegated remover on DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', function(){
+    // Attach delegation when an inline editor is inserted
+    document.body.addEventListener('click', function(ev){
+      var btn = ev.target.closest && ev.target.closest('.inline-editor .chips .tag-pill button');
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var pill = btn.closest('.tag-pill');
+      var chips = btn.closest('.chips');
+      if (!pill || !chips) return;
+      // Find current tags from DOM order and remove the clicked one by index
+      var pills = Array.prototype.slice.call(chips.querySelectorAll('.tag-pill'));
+      var idx = pills.indexOf(pill);
+      if (idx < 0) return;
+      // Retrieve the reminder id from the enclosing row
+      var row = btn.closest('.item[data-id]') || btn.closest('.inline-editor').parentElement;
+      if (!row) return;
+      var id = row.getAttribute('data-id');
+      // Update the in-memory object
+      try{
+        var list = Array.isArray(window.reminders)? window.reminders : [];
+        var i = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+        if (i > -1){
+          var r = list[i];
+          var current = Array.isArray(r.tags)? r.tags.slice() : [];
+          // Determine the tag text from the pill content
+          var label = (pill.querySelector('span') && pill.querySelector('span').textContent || '').replace(/^#\s*/,'').trim();
+          // Remove by label match (case-insensitive), fallback to index
+          var j = current.findIndex(function(t){ return String(t).toLowerCase() === label.toLowerCase(); });
+          if (j > -1) current.splice(j,1);
+          else current.splice(idx,1);
+          r.tags = current;
+          // Re-render the editor UI by triggering editReminder again
+          if (typeof window.editReminder === 'function'){
+            // clear the editing flag to allow reopening
+            try{ var host = row; if (host) host.__editing = false; }catch(_){}
+            window.editReminder(id);
+          }
+        }
+      }catch(e){ console.warn('chip remove failed', e); }
+    }, true);
+  });
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.29: reliable inline tag chip delete === */
+(function(){
+  'use strict';
+  function byId(id){ return document.getElementById(id); }
+  function esc(s){ return String(s||'').replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]); }); }
+  function toast(msg){ try{ (window.toast||console.log)(msg); }catch(_){ console.log(msg); } }
+  function cssEscape(sel){ return String(sel||'').replace(/(["\\])/g, '\\$1').replace(/]/g,'\\]'); }
+  function normalizeTags(arr){
+    if (Array.isArray(arr)) return arr.map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+    var s = String(arr||'').trim();
+    if (!s) return [];
+    return s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+  }
+
+  // Replace editReminder with a version whose editor manages its own state (including chip delete)
+  window.editReminder = function(id){
+    try{
+      var list = Array.isArray(window.reminders) ? window.reminders : [];
+      var idx = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+      if (idx === -1){ toast('Item not found'); return; }
+      var r = list[idx];
+      var row = document.querySelector('.item[data-id="'+cssEscape(id)+'"]');
+      if (!row) { toast('Row not found'); return; }
+      if (row.__editing) return;
+      row.__editing = true;
+
+      // internal state
+      var curTags = Array.isArray(r.tags) ? r.tags.slice() : [];
+
+      // preserve height to avoid jump
+      var rect = row.getBoundingClientRect();
+      row.style.minHeight = rect.height + 'px';
+
+      // build editor UI
+      row.innerHTML = '';
+      var wrapper = document.createElement('div');
+      wrapper.className = 'inline-editor';
+      wrapper.innerHTML = ''
+        + '<div class="ie-row">'
+        +   '<textarea class="ie-text" rows="3" style="width:100%; resize:vertical;">'+esc(String(r.text||''))+'</textarea>'
+        + '</div>'
+        + '<div class="ie-row ie-tags">'
+        +   '<div class="chips" style="display:flex;flex-wrap:wrap;gap:.35rem;"></div>'
+        +   '<input class="ie-tag-input" type="text" placeholder="Add tag and press Enter" style="margin-top:.35rem;min-height:34px;padding:.35rem .5rem; width:100%;">'
+        + '</div>'
+        + '<div class="ie-row ie-actions" style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem;">'
+        +   '<button class="ie-save">Save</button>'
+        +   '<button class="ie-cancel">Cancel</button>'
+        + '</div>';
+      row.appendChild(wrapper);
+
+      var chips = wrapper.querySelector('.chips');
+      var input = wrapper.querySelector('.ie-tag-input');
+      var txt   = wrapper.querySelector('.ie-text');
+      var saveBtn = wrapper.querySelector('.ie-save');
+      var cancelBtn = wrapper.querySelector('.ie-cancel');
+
+      /* removed old renderChips */
+      }
+
+      function addFromInput(){
+        var s = String(input.value||'').trim();
+        if (!s) return;
+        var toks = s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+        if (!toks.length) return;
+        for (var i=0;i<toks.length;i++){
+          var t = toks[i];
+          if (!curTags.some(function(x){ return x.toLowerCase()===t.toLowerCase(); })){
+            curTags.push(t);
+          }
+        }
+        input.value = '';
+        renderChips();
+      }
+
+      input.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter'){ ev.preventDefault(); addFromInput(); }
+        else if (ev.key === 'Backspace' && !input.value && curTags.length){
+          curTags.pop(); renderChips();
+        }
+      });
+
+      // Delegated remove: listens on the chips container
+      chips.addEventListener('click', function(ev){
+        var x = ev.target.closest && ev.target.closest('.chip-x');
+        if (!x) return;
+        ev.preventDefault(); ev.stopPropagation();
+        var pill = x.closest('.tag-pill');
+        var label = (pill.querySelector('span') && pill.querySelector('span').textContent || '').replace(/^#\s*/, '').trim();
+        var pos = curTags.findIndex(function(t){ return String(t).toLowerCase() === label.toLowerCase(); });
+        if (pos > -1){ curTags.splice(pos,1); renderChips(); }
+      });
+
+      saveBtn.addEventListener('click', function(){
+        try{
+          r.text = String(txt.value||'').trim();
+          r.tags = normalizeTags(curTags);
+          if (typeof window.saveReminders === 'function') window.saveReminders();
+          toast('Edit operation saved.');
+          if (typeof window.renderLists === 'function') window.renderLists();
+        }catch(e){ console.warn('inline save failed', e); }
+      });
+
+      cancelBtn.addEventListener('click', function(){
+        if (typeof window.renderLists === 'function') window.renderLists();
+      });
+
+      renderChips();
+      setTimeout(function(){ try{ txt.focus(); txt.select(); }catch(_){ } }, 0);
+    }catch(e){
+      console.warn('editReminder (inline v2.3.29) error', e);
+    }
+  };
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.30: bulletproof chip delete (direct per-chip handlers + larger hit-area) === */
+(function(){
+  'use strict';
+  // Override editReminder again with per-chip click bindings
+  (function(){
+    var prev = window.editReminder;
+    window.editReminder = function(id){
+      try{
+        var list = Array.isArray(window.reminders) ? window.reminders : [];
+        var idx = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+        if (idx === -1){ (window.toast||console.log)('Item not found'); return; }
+        var r = list[idx];
+        var row = document.querySelector('.item[data-id="'+String(id).replace(/(["\\])/g,'\\$1')+'"]');
+        if (!row) { (window.toast||console.log)('Row not found'); return; }
+        if (row.__editing) return;
+        row.__editing = true;
+
+        var curTags = Array.isArray(r.tags) ? r.tags.slice() : [];
+
+        var rect = row.getBoundingClientRect();
+        row.style.minHeight = rect.height + 'px';
+        row.innerHTML = '';
+
+        var wrap = document.createElement('div');
+        wrap.className = 'inline-editor';
+        wrap.innerHTML = ''
+          + '<div class="ie-row">'
+          +   '<textarea class="ie-text" rows="3" style="width:100%; resize:vertical;"></textarea>'
+          + '</div>'
+          + '<div class="ie-row ie-tags">'
+          +   '<div class="chips" style="display:flex;flex-wrap:wrap;gap:.35rem;"></div>'
+          +   '<input class="ie-tag-input" type="text" placeholder="Add tag and press Enter" style="margin-top:.35rem;min-height:36px;padding:.45rem .6rem; width:100%;">'
+          + '</div>'
+          + '<div class="ie-row ie-actions" style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">'
+          +   '<button class="ie-save">Save</button>'
+          +   '<button class="ie-cancel">Cancel</button>'
+          + '</div>';
+        row.appendChild(wrap);
+
+        var txt = wrap.querySelector('.ie-text');
+        txt.value = String(r.text||'');
+
+        var chips = wrap.querySelector('.chips');
+        var input = wrap.querySelector('.ie-tag-input');
+        var saveBtn = wrap.querySelector('.ie-save');
+        var cancelBtn = wrap.querySelector('.ie-cancel');
+
+        /* removed old renderChips */else{
+                var pos = curTags.findIndex(function(t){ return String(t).toLowerCase() === String(tag).toLowerCase(); });
+                if (pos > -1) curTags.splice(pos,1);
+              }
+              renderChips();
+            };
+            btn.addEventListener('click', remove);
+            btn.addEventListener('touchend', remove);
+
+            pill.appendChild(label);
+            pill.appendChild(btn);
+            chips.appendChild(pill);
+          });
+        }
+
+        function addFromInput(){
+          var s = String(input.value||'').trim();
+          if (!s) return;
+          var toks = s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+          if (!toks.length) return;
+          toks.forEach(function(t){
+            if (!curTags.some(function(x){ return x.toLowerCase()===t.toLowerCase(); })){
+              curTags.push(t);
+            }
+          });
+          input.value = '';
+          renderChips();
+        }
+
+        input.addEventListener('keydown', function(ev){
+          if (ev.key === 'Enter'){ ev.preventDefault(); addFromInput(); }
+          else if (ev.key === 'Backspace' && !input.value && curTags.length){
+            curTags.pop(); renderChips();
+          }
+        });
+
+        saveBtn.addEventListener('click', function(){
+          r.text = String(txt.value||'').trim();
+          r.tags = curTags.slice();
+          try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+          (window.toast||console.log)('Edit operation saved.');
+          try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        });
+
+        cancelBtn.addEventListener('click', function(){
+          try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        });
+
+        renderChips();
+        setTimeout(function(){ try{ txt.focus(); txt.select(); }catch(_){ } }, 0);
+      }catch(e){
+        console.warn('editReminder (v2.3.30) error', e);
+        try{ if (typeof prev==='function') prev(id); }catch(_){}
+      }
+    };
+  })();
+})();
+</script>
+
+
+<script>
+/* === FOOLoop v2.3.31: ultra-reliable chip delete (data-tag + pointerdown + autosave) === */
+(function(){
+  'use strict';
+  // Replace editReminder with a version that uses data-tag and both delegated + direct handlers,
+  // plus autosave on chip deletion.
+  (function(){
+    var prev = window.editReminder;
+    window.editReminder = function(id){
+      try{
+        var list = Array.isArray(window.reminders) ? window.reminders : [];
+        var idx = list.findIndex(function(r){ return String(r && r.id) === String(id); });
+        if (idx === -1){ (window.toast||console.log)('Item not found'); return; }
+        var r = list[idx];
+        var row = document.querySelector('.item[data-id="'+String(id).replace(/(["\\])/g,'\\$1')+'"]');
+        if (!row) { (window.toast||console.log)('Row not found'); return; }
+        if (row.__editing) return;
+        row.__editing = true;
+
+        var curTags = Array.isArray(r.tags) ? r.tags.slice() : [];
+
+        var rect = row.getBoundingClientRect();
+        row.style.minHeight = rect.height + 'px';
+        row.innerHTML = '';
+
+        var wrap = document.createElement('div');
+        wrap.className = 'inline-editor';
+        wrap.innerHTML = ''
+          + '<div class="ie-row">'
+          +   '<textarea class="ie-text" rows="3" style="width:100%; resize:vertical;"></textarea>'
+          + '</div>'
+          + '<div class="ie-row ie-tags">'
+          +   '<div class="chips" style="display:flex;flex-wrap:wrap;gap:.35rem;"></div>'
+          +   '<input class="ie-tag-input" type="text" placeholder="Add tag and press Enter" style="margin-top:.35rem;min-height:36px;padding:.45rem .6rem; width:100%;">'
+          + '</div>'
+          + '<div class="ie-row ie-actions" style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">'
+          +   '<button class="ie-save">Save</button>'
+          +   '<button class="ie-cancel">Cancel</button>'
+          + '</div>';
+        row.appendChild(wrap);
+
+        var txt = wrap.querySelector('.ie-text');
+        txt.value = String(r.text||'');
+        var chips = wrap.querySelector('.chips');
+        var input = wrap.querySelector('.ie-tag-input');
+        var saveBtn = wrap.querySelector('.ie-save');
+        var cancelBtn = wrap.querySelector('.ie-cancel');
+
+        /* removed old renderChips */);
+              if (pos > -1){
+                curTags.splice(pos,1);
+                renderChips();
+                // Autosave tags immediately to JSON for reliability
+                try{
+                  r.tags = curTags.slice();
+                  if (typeof window.saveReminders==='function') window.saveReminders();
+                }catch(_){}
+              }
+            };
+            btn.addEventListener('pointerdown', remove, {passive:false});
+            btn.addEventListener('click', remove);
+            btn.addEventListener('touchend', remove);
+
+            pill.appendChild(label);
+            pill.appendChild(btn);
+            chips.appendChild(pill);
+          });
+        }
+
+        function addFromInput(){
+          var s = String(input.value||'').trim();
+          if (!s) return;
+          var toks = s.split(/[, ]+/).map(function(t){ return String(t||'').replace(/^#/, '').trim(); }).filter(Boolean);
+          if (!toks.length) return;
+          toks.forEach(function(t){
+            if (!curTags.some(function(x){ return x.toLowerCase()===t.toLowerCase(); })){
+              curTags.push(t);
+            }
+          });
+          input.value = '';
+          renderChips();
+        }
+
+        input.addEventListener('keydown', function(ev){
+          if (ev.key === 'Enter'){ ev.preventDefault(); addFromInput(); }
+          else if (ev.key === 'Backspace' && !input.value && curTags.length){
+            curTags.pop(); renderChips();
+          }
+        });
+
+        // Also provide a delegated fallback in case dynamic chips miss direct handlers
+        var delegatedRemove = function(ev){
+          var x = ev.target && ev.target.closest ? ev.target.closest('.chip-x') : null;
+          if (!x) return;
+          ev.preventDefault(); ev.stopPropagation();
+          var pill = x.closest('.tag-pill');
+          var tag = pill ? pill.getAttribute('data-tag') : '';
+          if (!tag) return;
+          var pos = curTags.findIndex(function(t){ return String(t).toLowerCase() === String(tag).toLowerCase(); });
+          if (pos > -1){
+            curTags.splice(pos,1);
+            renderChips();
+            try{ r.tags = curTags.slice(); if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+          }
+        };
+        chips.addEventListener('click', delegatedRemove);
+        chips.addEventListener('pointerdown', delegatedRemove, {passive:false});
+
+        saveBtn.addEventListener('click', function(){
+          r.text = String(txt.value||'').trim();
+          r.tags = curTags.slice();
+          try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+          (window.toast||console.log)('Edit operation saved.');
+          try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        });
+        cancelBtn.addEventListener('click', function(){
+          try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+        });
+
+        renderChips();
+        setTimeout(function(){ try{ txt.focus(); txt.select(); }catch(_){ } }, 0);
+      }catch(e){
+        console.warn('editReminder (v2.3.31) error', e);
+        try{ if (typeof prev==='function') prev(id); }catch(_){}
+      }
+    };
+  })();
+})();
+</script>
+
+<script id="minus-delegate">
+(function(){
+  try{
+    document.addEventListener('click', function(ev){
+      var el = ev.target && ev.target.closest ? ev.target.closest('.minus') : null;
+      if (!el) return;
+      var row = el.closest && el.closest('.item');
+      var id = row && row.getAttribute('data-id');
+      if (!id) return;
+      try{
+        // Direct delete: move from reminders to deleted
+        var rem = Array.isArray(window.reminders) ? window.reminders : (window.reminders = []);
+        var bin = Array.isArray(window.deleted) ? window.deleted : (window.deleted = []);
+        var idx = rem.findIndex(function(r){ return String(r && r.id) === String(id); });
+        if (idx > -1){
+          bin.unshift(rem[idx]);
+          rem.splice(idx,1);
+          // Persist & refresh
+          try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+          try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+          // Toast
+          try{
+            if (typeof window.toast==='function') window.toast('Reminder deleted');
+            else if (typeof window.setStatus==='function'){ setStatus('Reminder deleted'); setTimeout(function(){ setStatus(''); }, 1400); }
+          }catch(_){}
+        }
+      }catch(e){ try{ console.warn('minus delegate error', e); }catch(_){ } }
+      ev.preventDefault(); ev.stopPropagation();
+    }, true);
+  }catch(_){}
+})();
+</script>
+<script id="bind-newText-enter">
+(function(){
+  try{
+    var ta = document.getElementById('newText');
+    if (!ta || ta.__boundEnter) return;
+    ta.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        var v = String(ta.value||'').trim();
+        if (!v) return;
+        if (typeof window.handleReminder==='function'){
+          window.handleReminder('add', v);
+        } else {
+          // Fallback direct add
+          window.reminders = Array.isArray(window.reminders) ? window.reminders : [];
+          window.reminders.unshift({ id: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7), text: v, tags: []});
+          if (typeof window.saveReminders==='function') try{ window.saveReminders(); }catch(_){}
+          if (typeof window.renderLists==='function') try{ window.renderLists(); }catch(_){}
+          if (typeof window.toast==='function') try{ window.toast('Reminder added'); }catch(_){}
+        }
+        ta.value='';
+      } else if (e.key === 'Escape'){
+        ta.value='';
+      }
+    }, false);
+    ta.__boundEnter = true;
+  }catch(_){}
+})();
+</script>
+<script id="force-newText-visible-js">
+(function(){
+  'use strict';
+  function showAddBar(){
+    try{
+      var ta = document.getElementById('newText');
+      if (!ta) return;
+      // If any ancestor hides it, clear inline style and try to show
+      try {
+        // Remove inline display:none on the node
+        if (ta.style && ta.style.display === 'none') ta.style.display = 'block';
+        // If it's still not visible, attempt to clear visibility/opacity
+        ta.style.visibility = 'visible';
+        ta.style.opacity = '1';
+        // If parent ".row" exists and is hidden, show it
+        var row = ta.closest && ta.closest('.row');
+        if (row && getComputedStyle(row).display === 'none') row.style.display = 'block';
+      } catch(_) {}
+      try { ta.scrollIntoView({behavior:'smooth', block:'center'}); } catch(_) {}
+      try { ta.focus(); } catch(_) {}
+    } catch(_){}
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', showAddBar);
+  } else { showAddBar(); }
+  window.addEventListener('resize', function(){ showAddBar(); });
+})();
+</script>
+
+<style id="add-overlay-css">
+.add-overlay {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: rgba(20,20,20,.98);
+  padding: 10px 12px;
+  box-shadow: 0 -6px 18px rgba(0,0,0,.35);
+  display: none;
+  z-index: 9999;
+}
+.add-overlay.open { display: block; }
+.add-overlay .bar {
+  display: flex; gap: 8px; align-items: center;
+  max-width: 980px; margin: 0 auto;
+}
+.add-overlay textarea {
+  flex: 1; min-height: 42px; max-height: 160px;
+  resize: vertical; border-radius: 10px; border: 1px solid #666;
+  padding: 8px 10px; font-size: 14px;
+}
+.add-overlay button {
+  border-radius: 10px; padding: 8px 12px; border: 1px solid #777; background:#2a2a2a; color:#fff; cursor:pointer;
+}
+.add-overlay .hint { color:#bbb; font-size: 12px; margin-left: 8px; }
+</style>
+
+<div id="addOverlay" class="add-overlay" aria-hidden="true">
+  <div class="bar">
+    <textarea id="addOverlayText" placeholder="Type a new reminder… (Enter = add, Shift+Enter = newline, Esc = close)"></textarea>
+    <button id="addOverlayAddBtn" title="Add">Add</button>
+    <button id="addOverlayCloseBtn" title="Close">Close</button>
+    <span class="hint">Press Enter to add</span>
+  </div>
+</div>
+
+
+<script id="add-overlay-js">
+(function(){
+  'use strict';
+  function ensureArrays(){
+    if (!Array.isArray(window.reminders)) window.reminders = [];
+    if (!Array.isArray(window.deleted)) window.deleted = [];
+  }
+  function openAddOverlay(){
+    try{
+      ensureArrays();
+      var ov = document.getElementById('addOverlay');
+      var ta = document.getElementById('addOverlayText');
+      if (!ov || !ta) return;
+      ov.classList.add('open'); ov.setAttribute('aria-hidden','false');
+      try{ ta.focus(); }catch(_){}
+    }catch(_){}
+  }
+  function closeAddOverlay(){
+    var ov = document.getElementById('addOverlay');
+    var ta = document.getElementById('addOverlayText');
+    if (ov){ ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); }
+    if (ta){ ta.value=''; }
+  }
+  function doAdd(text){
+    var v = String(text||'').trim();
+    if (!v) return;
+    ensureArrays();
+    window.reminders.unshift({ id: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7), text: v, tags: []});
+    try{ if (typeof window.saveReminders==='function') window.saveReminders(); }catch(_){}
+    try{ if (typeof window.renderLists==='function') window.renderLists(); }catch(_){}
+    try{
+      if (typeof window.toast==='function') window.toast('Reminder added');
+      else if (typeof window.setStatus==='function'){ setStatus('Reminder added'); setTimeout(function(){ setStatus(''); }, 1200); }
+    }catch(_){}
+  }
+  window.openAddOverlay = openAddOverlay; // expose for onclick
+  // Bind overlay buttons & keys on DOM ready
+  function bindOverlay(){
+    var ov = document.getElementById('addOverlay');
+    var ta = document.getElementById('addOverlayText');
+    var addBtn = document.getElementById('addOverlayAddBtn');
+    var closeBtn = document.getElementById('addOverlayCloseBtn');
+    if (addBtn && !addBtn.__bound){
+      addBtn.addEventListener('click', function(){ doAdd(ta && ta.value); closeAddOverlay(); });
+      addBtn.__bound = true;
+    }
+    if (closeBtn && !closeBtn.__bound){
+      closeBtn.addEventListener('click', function(){ closeAddOverlay(); });
+      closeBtn.__bound = true;
+    }
+    if (ta && !ta.__bound){
+      ta.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' && !e.shiftKey){
+          e.preventDefault(); doAdd(ta.value); closeAddOverlay();
+        } else if (e.key === 'Escape'){
+          e.preventDefault(); closeAddOverlay();
+        }
+      });
+      ta.__bound = true;
+    }
+    // Clicking outside the bar closes the overlay
+    if (ov && !ov.__bgBound){
+      ov.addEventListener('click', function(e){
+        if (!e.target.closest('.bar')) closeAddOverlay();
+      });
+      ov.__bgBound = true;
+    }
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bindOverlay);
+  } else { bindOverlay(); }
+})();
+</script>
+
+</body>
+</html>
