@@ -1,0 +1,3 @@
+User-agent: * means this rule applies to every search engine bot (Google, Bing, Baidu, etc.).
+
+Disallow: / means they are forbidden from crawling any part of your website.
